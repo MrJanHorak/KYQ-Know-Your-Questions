@@ -71,6 +71,8 @@ Built with Next.js, React, TypeScript, Tailwind CSS, Firebase Authentication, an
 3. Copy its link and share the link and password separately with participants.
 4. Participants open the link, unlock the board, and can ask, vote, and reply. Instructors can open **Manage board** to moderate questions and change their status.
 
+Questions and replies support visual formatting, including bold, italics, lists, and tables. Their Markdown formatting is retained in Markdown exports. The 2,000-character limit and editor counter measure the stored Markdown, including formatting characters.
+
 Changing a board password requires participants to unlock it again. Deleting a board permanently removes its questions and replies; export it first if you need a copy.
 
 ## Privacy and deployment

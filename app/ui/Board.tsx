@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { onAuthStateChanged, signInAnonymously, signInWithCustomToken, signOut } from 'firebase/auth';
 import {
   addDoc,
-  arrayUnion,
   collection,
   doc,
   onSnapshot,
@@ -31,6 +30,10 @@ import {
 } from 'lucide-react';
 import { auth, configured, db } from '../../lib/firebase';
 import type { Question, Status } from '../../lib/types';
+import Dialog from './Dialog';
+import ReplyEditor from './ReplyEditor';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const labels: Record<Status, string> = {
   unanswered: 'OPEN',
@@ -48,6 +51,33 @@ const timeAgo = (seconds?: number) => {
         ? `${Math.floor(m / 60)}h ago`
         : `${Math.floor(m / 1440)}d ago`;
 };
+const avatarColors = [
+  ['#e3f2d5', '#355e2b'], ['#e0edfa', '#28547d'], ['#f8e5d7', '#824b28'],
+  ['#f3e2ed', '#7e3d66'], ['#e8e4fa', '#514386'], ['#f7ebc9', '#765711'],
+  ['#d8f1ea', '#28685b'], ['#f7dddd', '#8a4141'], ['#e0ebd1', '#536326'],
+  ['#dcebf1', '#3a6171'], ['#f1e1d8', '#79503e'], ['#e7e3ef', '#625176'],
+];
+const avatarSymbols = ['✦', '●', '◆', '✿', '▲', '✱', '♥', '■'];
+function Avatar({ name, authorUid }: { name: string; authorUid?: string }) {
+  if (!authorUid) return <span className='avatar' aria-hidden='true'>{(name || 'A')[0].toUpperCase()}</span>;
+  let hash = 2166136261;
+  for (const character of authorUid) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
+  const value = hash >>> 0;
+  const [background, color] = avatarColors[value % avatarColors.length];
+  const content = !name || name.toLowerCase() === 'anonymous' ? avatarSymbols[Math.floor(value / avatarColors.length) % avatarSymbols.length] : name[0].toUpperCase();
+  return <span className='avatar' aria-hidden='true' style={{ background, color }}>{content}<img src={`https://api.dicebear.com/10.x/clay/svg?seed=${value}`} alt='' referrerPolicy='no-referrer' onError={e => { e.currentTarget.style.display = 'none'; }} /></span>;
+}
+function Reference({ value, iconSize }: { value: string; iconSize: number }) {
+  const candidate = value.trim();
+  let href: string | null = null;
+  if (!/\s/.test(candidate) && /^(https?:\/\/|www\.)/i.test(candidate)) {
+    try {
+      const url = new URL(/^www\./i.test(candidate) ? 'https://' + candidate : candidate);
+      if ((url.protocol === 'http:' || url.protocol === 'https:') && url.hostname) href = url.href;
+    } catch { /* Keep non-URL lesson references as text. */ }
+  }
+  return <div className='reference'><Link2 size={iconSize} /> {href ? <a href={href} target='_blank' rel='noopener noreferrer'>{value}</a> : value}</div>;
+}
 export default function Board({ admin = false, boardId }: { admin?: boolean; boardId: string }) {
   const [uid, setUid] = useState('');
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -62,11 +92,19 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
   const [selected, setSelected] = useState<string | null>(null);
   const [reply, setReply] = useState('');
   const [replyName, setReplyName] = useState('');
+  const [editingReply, setEditingReply] = useState<string | null>(null);
+  const [replyDraft, setReplyDraft] = useState('');
+  const [replyError, setReplyError] = useState('');
   const [unlocked, setUnlocked] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [boardName, setBoardName] = useState('The question board');
   const [password, setPassword] = useState('');
   const [presenter, setPresenter] = useState(false);
+  const [editing, setEditing] = useState<Question | null>(null);
+  const [editQuestion, setEditQuestion] = useState('');
+  const [editReference, setEditReference] = useState('');
+  const [deleting, setDeleting] = useState<Question | null>(null);
+  const [dialogError, setDialogError] = useState('');
   useEffect(() => {
     if (!auth) return;
     const a = auth;
@@ -136,13 +174,14 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
   const active = questions.find((q) => q.id === selected);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!db || !uid || !question.trim() || cooldown || busy) return;
+    if (!db || !uid || !question.trim() || question.length > 2000 || cooldown || busy) return;
     setBusy(true);
     try {
       await addDoc(collection(db, 'boards', boardId, 'questions'), {
         question: question.trim(),
         lessonReference: reference.trim(),
         authorName: name.trim() || 'Anonymous',
+        authorUid: uid,
         upvotes: [],
         upvoteCount: 0,
         status: 'unanswered',
@@ -176,26 +215,23 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
       setError('Your upvote could not be saved. Please try again.');
     }
   }
-  async function addReply(e: React.FormEvent) {
-    e.preventDefault();
-    if (!db || !active || !reply.trim() || !uid) return;
-    setBusy(true);
+  async function saveReply(edit = false) {
+    if (!active || !auth?.currentUser || busy) return;
+    const text = (edit ? replyDraft : reply).trim();
+    if (!text || text.length > 2000 || (edit && !editingReply)) return;
+    setBusy(true); setReplyError('');
     try {
-      await updateDoc(doc(db, 'boards', boardId, 'questions', active.id), {
-        replies: arrayUnion({
-          author: replyName.trim() || 'Anonymous',
-          text: reply.trim(),
-          createdAt: new Date().toISOString(),
-        }),
+      const response = await fetch('/api/replies', {
+        method: edit ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ boardId, questionId: active.id, replyId: editingReply, text, author: replyName.trim(), idToken: await auth.currentUser.getIdToken() }),
       });
-      setReply('');
-      setReplyName('');
-    } catch {
-      setError('Your reply could not be saved. Please try again.');
-    } finally {
-      setBusy(false);
-    }
+      if (!response.ok) throw new Error();
+      if (edit) { setEditingReply(null); setReplyDraft(''); }
+      else { setReply(''); setReplyName(''); }
+    } catch { setReplyError('Your reply could not be saved. Please try again.'); }
+    finally { setBusy(false); }
   }
+  function addReply(e: React.FormEvent) { e.preventDefault(); void saveReply(); }
   async function openBoard(instructor = false) {
     if (!auth?.currentUser) { setError('Could not connect. Refresh the page and try again.'); return; }
     setBusy(true);
@@ -216,13 +252,24 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
     } catch { setError('Could not connect to the board. Please try again.'); } finally { setBusy(false); }
   }
   useEffect(() => { if (admin && uid && !checkingAccess && !unlocked) void openBoard(true); }, [admin, uid, checkingAccess]);
-  async function action(id: string, operation: string, value?: string) {
-    const r = await fetch('/api/admin', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ boardId, id, operation, value }),
-    });
-    if (!r.ok) setError('Admin action failed. Check the server configuration.');
+  async function action(id: string, operation: string, value?: string, lessonReference?: string) {
+    try {
+      const r = await fetch('/api/admin', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ boardId, id, operation, value, lessonReference }) });
+      if (!r.ok) throw new Error();
+      return true;
+    } catch { setError('Admin action failed. Please try again.'); return false; }
+  }
+  function startEdit(q: Question) { setEditQuestion(q.question); setEditReference(q.lessonReference || ''); setDialogError(''); setEditing(q); }
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editing || !editQuestion.trim() || editQuestion.length > 2000 || !db) return;
+    setBusy(true); setDialogError('');
+    try {
+      if (admin) { if (!await action(editing.id, 'edit', editQuestion.trim(), editReference.trim())) throw new Error(); }
+      else await updateDoc(doc(db, 'boards', boardId, 'questions', editing.id), { question: editQuestion.trim(), lessonReference: editReference.trim() });
+      setEditing(null);
+    } catch { setDialogError('Could not save your changes. Please try again.'); }
+    finally { setBusy(false); }
   }
   if (!unlocked || checkingAccess)
     return (
@@ -417,60 +464,32 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
                         <span>·</span>
                         <span>{timeAgo(q.createdAt?.seconds)}</span>
                       </div>
-                      <button
-                        className='question-title'
-                        onClick={() => setSelected(q.id)}
+                      <div
+                        className='question-title' role='button' tabIndex={0}
+                        onClick={() => { setEditingReply(null); setReplyError(''); setSelected(q.id); }}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingReply(null); setReplyError(''); setSelected(q.id); } }}
                       >
-                        {q.question}
-                      </button>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml disallowedElements={['img', 'a']} unwrapDisallowed>{q.question}</ReactMarkdown>
+                      </div>
                       {q.lessonReference && (
-                        <div className='reference'>
-                          <Link2 size={13} /> {q.lessonReference}
-                        </div>
+                        <Reference value={q.lessonReference} iconSize={13} />
                       )}
                       <div className='question-bottom'>
                         <span>
-                          <span className='avatar'>
-                            {(q.authorName || 'A')[0].toUpperCase()}
-                          </span>{' '}
+                          <Avatar name={q.authorName} authorUid={q.authorUid} />{' '}
                           {q.authorName || 'Anonymous'}
                         </span>
-                        <button onClick={() => setSelected(q.id)}>
+                        <button onClick={() => { setEditingReply(null); setReplyError(''); setSelected(q.id); }}>
                           <MessageCircle size={15} /> {q.replies?.length || 0}{' '}
                           {(q.replies?.length || 0) === 1 ? 'reply' : 'replies'}{' '}
                           <ArrowRight size={14} />
                         </button>
                       </div>
-                      {admin && !presenter && (
+                      {!presenter && (admin || q.authorUid === uid) && (
                         <div className='admin-actions'>
-                          <button
-                            onClick={() => action(q.id, 'status', 'in_review')}
-                          >
-                            In review
-                          </button>
-                          <button
-                            onClick={() => action(q.id, 'status', 'answered')}
-                          >
-                            Mark answered
-                          </button>
-                          <button
-                            onClick={() => {
-                              const v = prompt('Edit question', q.question);
-                              if (v?.trim()) action(q.id, 'edit', v.trim());
-                            }}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (
-                                confirm('Delete this question and its replies?')
-                              )
-                                action(q.id, 'delete');
-                            }}
-                          >
-                            Delete
-                          </button>
+                          {admin && <><button onClick={() => action(q.id, 'status', 'in_review')}>In review</button><button onClick={() => action(q.id, 'status', 'answered')}>Mark answered</button></>}
+                          <button onClick={() => startEdit(q)}>Edit{!admin ? ' your question' : ''}</button>
+                          {admin && <button onClick={() => { setDialogError(''); setDeleting(q); }}>Delete</button>}
                         </div>
                       )}
                     </div>
@@ -490,16 +509,7 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
                   Ask away<span className='period'>.</span>
                 </h2>
                 <p>Big or small, every question moves us forward.</p>
-                <label>
-                  YOUR QUESTION <span>*</span>
-                  <textarea
-                    maxLength={2000}
-                    required
-                    value={question}
-                    onChange={(e) => setQuestion(e.target.value)}
-                    placeholder="What's on your mind?"
-                  />
-                </label>
+                <ReplyEditor label='YOUR QUESTION' value={question} onChange={setQuestion} placeholder="What's on your mind?" />
                 <label>
                   LESSON OR LINK <small>OPTIONAL</small>
                   <input
@@ -520,14 +530,14 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
                 </label>
                 <button
                   className='primary'
-                  disabled={!uid || !question.trim() || cooldown > 0 || busy}
+                  disabled={!uid || !question.trim() || question.length > 2000 || cooldown > 0 || busy}
                   type='submit'
                 >
                   {cooldown ? `Wait ${cooldown}s` : 'Post your question'}{' '}
                   <ArrowRight size={17} />
                 </button>
                 <div className='form-foot'>
-                  <LockKeyhole size={13} /> NO ACCOUNT NEEDED. JUST CURIOSITY.
+                  <LockKeyhole size={13} /> NO ACCOUNT NEEDED. EDIT FROM THIS BROWSER WHILE SIGNED IN.
                 </div>
               </form>
               <div className='aside-note'>
@@ -555,6 +565,13 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
         </div>
         <span>QUESTION EVERYTHING &nbsp; ✳ &nbsp; KEEP CURIOUS</span>
       </footer>
+      {editing && <Dialog title='Edit question' onClose={() => !busy && setEditing(null)}><form onSubmit={saveEdit}>
+        <ReplyEditor label='EDIT YOUR QUESTION' autoFocus value={editQuestion} onChange={setEditQuestion} />
+        <label>LESSON OR LINK <small>OPTIONAL</small><input maxLength={500} value={editReference} onChange={e => setEditReference(e.target.value)} /></label>
+        {dialogError && <p className='error' role='alert'>{dialogError}</p>}
+        <div className='dialog-actions'><button type='button' className='outline' disabled={busy} onClick={() => setEditing(null)}>Cancel</button><button className='primary' disabled={busy || !editQuestion.trim() || editQuestion.length > 2000}>{busy ? 'Saving…' : 'Save changes'}</button></div>
+      </form></Dialog>}
+      {deleting && <Dialog title='Delete question?' onClose={() => !busy && setDeleting(null)}><p>This will permanently delete this question and its replies.</p>{dialogError && <p className='error' role='alert'>{dialogError}</p>}<div className='dialog-actions'><button className='outline' disabled={busy} onClick={() => setDeleting(null)}>Cancel</button><button className='primary danger' disabled={busy} onClick={async () => { setBusy(true); if (await action(deleting.id, 'delete')) setDeleting(null); else setDialogError('Could not delete the question. Please try again.'); setBusy(false); }}>Delete question</button></div></Dialog>}
       {active && (
         <div className='modal-backdrop' onClick={() => setSelected(null)}>
           <section
@@ -575,23 +592,21 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
             <span className={`status ${active.status}`}>
               ● &nbsp;{labels[active.status]}
             </span>
-            <h2>{active.question}</h2>
-            <p className='thread-meta'>
-              Asked by {active.authorName} ·{' '}
-              {timeAgo(active.createdAt?.seconds)}
-            </p>
+            <div className='thread-question reply-markdown'><ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml disallowedElements={['img']}>{active.question}</ReactMarkdown></div>
+            <div className='thread-meta'>
+              <Avatar name={active.authorName} authorUid={active.authorUid} />
+              <span>Asked by {active.authorName || 'Anonymous'} · {timeAgo(active.createdAt?.seconds)}</span>
+            </div>
             {active.lessonReference && (
-              <div className='reference'>
-                <Link2 size={14} /> {active.lessonReference}
-              </div>
+              <Reference value={active.lessonReference} iconSize={14} />
             )}
             <div className='thread-divider' />
-            <h3>{active.replies?.length || 0} replies</h3>
+            <h3>{active.replies?.length || 0} {(active.replies?.length || 0) === 1 ? 'reply' : 'replies'}</h3>{replyError && <p className='error' role='alert'>{replyError}</p>}
             <div className='replies'>
               {active.replies?.length ? (
                 active.replies.map((r, i) => (
-                  <div className='reply' key={i}>
-                    <span className='avatar'>{r.author[0]?.toUpperCase()}</span>
+                  <div className='reply' key={r.id || i}>
+                    <Avatar name={r.author} authorUid={r.authorUid} />
                     <div>
                       <strong>{r.author}</strong>
                       <span>
@@ -601,7 +616,10 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
                           Math.floor(new Date(r.createdAt).getTime() / 1000),
                         )}
                       </span>
-                      <p>{r.text}</p>
+                      {editingReply === r.id && r.id ? <form onSubmit={e => { e.preventDefault(); void saveReply(true); }} className='reply-edit'>
+                        <ReplyEditor label='EDIT YOUR REPLY' autoFocus value={replyDraft} onChange={setReplyDraft} />
+                        <div className='dialog-actions'><button type='button' className='outline' disabled={busy} onClick={() => { setEditingReply(null); setReplyError(''); }}>Cancel</button><button className='primary' disabled={busy || !replyDraft.trim() || replyDraft.length > 2000}>{busy ? 'Saving…' : 'Save changes'}</button></div>
+                      </form> : <><div className='reply-markdown'><ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml disallowedElements={['img']}>{r.text}</ReactMarkdown></div>{r.id && r.authorUid === uid && <button type='button' className='outline edit-reply-button' onClick={() => { setEditingReply(r.id!); setReplyDraft(r.text); setReplyError(''); }}>Edit your reply</button>}</>}
                     </div>
                   </div>
                 ))
@@ -610,16 +628,7 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
               )}
             </div>
             <form onSubmit={addReply}>
-              <label>
-                YOUR REPLY
-                <textarea
-                  required
-                  maxLength={2000}
-                  value={reply}
-                  onChange={(e) => setReply(e.target.value)}
-                  placeholder='Share what you know...'
-                />
-              </label>
+              <ReplyEditor label='YOUR REPLY' value={reply} onChange={setReply} placeholder='Share what you know...' />
               <input
                 maxLength={80}
                 value={replyName}
@@ -628,7 +637,7 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
               />
               <button
                 className='primary'
-                disabled={!uid || busy || !reply.trim()}
+                disabled={!uid || busy || !reply.trim() || reply.length > 2000}
               >
                 Post reply <Send size={15} />
               </button>
