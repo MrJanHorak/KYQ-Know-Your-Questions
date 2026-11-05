@@ -1,0 +1,6 @@
+node_modules
+.next
+.env.local
+.firebase-admin-key.json
+firebase-debug.log
+*.tsbuildinfo
