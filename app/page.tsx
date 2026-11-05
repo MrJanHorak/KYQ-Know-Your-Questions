@@ -1,2 +1,2 @@
-import Board from './ui/Board';
-export default function Page() { return <Board />; }
+import { Code2, LockKeyhole } from 'lucide-react';
+export default function Page() { return <main className='login-wrap'><section className='login card'><div className='brand-mark'><Code2 size={21}/></div><span className='eyebrow'>KNOW YOUR QUESTIOS</span><h1>A space to ask<span className='period'>.</span></h1><p>Boards are private. Open the link from your instructor and enter the shared board password to join the conversation.</p><div className='notice'><LockKeyhole size={16}/> &nbsp; Your instructor will share a board link with you.</div><a href='/admin'>Instructor? Manage your boards →</a></section></main>; }
