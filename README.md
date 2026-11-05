@@ -8,7 +8,7 @@ A private, live question board for classrooms and coding intensives. Give each g
 - **Find what matters:** Upvote questions and browse by Hot, New, or FAQ (answered questions).
 - **Follow along live:** Firestore updates the board as the conversation changes.
 - **Run a class:** Instructors can create password-protected boards, update question statuses, edit or delete questions, and use presenter mode.
-- **Keep a record:** Export a board as Markdown or JSON, or copy questions from the original legacy board.
+- **Keep a record:** Export a board as Markdown or JSON.
 
 Built with Next.js, React, TypeScript, Tailwind CSS, Firebase Authentication, and Cloud Firestore.
 
@@ -68,7 +68,7 @@ Built with Next.js, React, TypeScript, Tailwind CSS, Firebase Authentication, an
 
 1. Sign in at `/admin` with the instructor password.
 2. Create a board with a name and a shared password of at least eight characters.
-3. Copy its link and share the link and password separately with participants.
+3. Use **Share** to copy the board link or download its QR code, and share the password separately with participants.
 4. Participants open the link, unlock the board, and can ask, vote, and reply. Instructors can open **Manage board** to moderate questions and change their status.
 
 Questions and replies support visual formatting, including bold, italics, lists, and tables. Their Markdown formatting is retained in Markdown exports. The 2,000-character limit and editor counter measure the stored Markdown, including formatting characters.
@@ -81,7 +81,7 @@ Board passwords are salted and hashed on the server. After a participant unlocks
 
 Password attempts are limited in Firestore by client IP. This depends on correct trusted proxy and IP configuration. The question-posting cooldown is a client-side convenience, not a server-enforced spam limit. Anonymous Firebase identities are browser-specific and can change when site data is cleared.
 
-Deploy the app and `firestore.rules` together, especially when updating board access behavior. For migration from the original single-board version, the new rules deny access to the old collection; instructors can copy its questions into a new board with **Import old questions**. Importing leaves the originals in place and skips questions already imported. Coordinate deployment: publishing the rules first interrupts the old app, while publishing the app first temporarily prevents access to new boards.
+Deploy the app and `firestore.rules` together, especially when updating board access behavior. The rules deny access to the original single-board collection. Coordinate deployment: publishing the rules first interrupts the old app, while publishing the app first temporarily prevents access to new boards.
 
 ## Commands
 

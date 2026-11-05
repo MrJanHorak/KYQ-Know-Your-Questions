@@ -309,7 +309,7 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
               <Code2 size={20} />
             </span>
             <span>
-              KYQ <small> / KNOW YOUR QUESTIOS</small>
+              KYQ <small> / KNOW YOUR QUESTIONS</small>
             </span>
           </a>
           <div className='top-right'>
