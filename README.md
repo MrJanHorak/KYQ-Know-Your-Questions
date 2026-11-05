@@ -1,16 +1,45 @@
-# KYQ · Know Your Questions
+<img src="docs/images/kyq-logo.png" alt="KYQ — Know Your Questions" width="390">
 
-A private, live question board for classrooms and coding intensives. Give each group its own space to ask questions, compare notes, and surface what needs attention—without requiring participants to create an account.
+# Know Your Questions
 
-## What it does
+![Good questions drive great outcomes. Give curiosity a place to grow.](docs/images/banner.png)
 
-- **Ask and discuss:** Post questions with an optional name and lesson reference, and reply in a thread.
-- **Find what matters:** Upvote questions and browse by Hot, New, or FAQ (answered questions).
-- **Follow along live:** Firestore updates the board as the conversation changes.
-- **Run a class:** Instructors can create password-protected boards, update question statuses, edit or delete questions, and use presenter mode.
-- **Keep a record:** Export a board as Markdown or JSON.
+**Make room for the questions that move learning forward.**
 
-Built with Next.js, React, TypeScript, Tailwind CSS, Firebase Authentication, and Cloud Firestore.
+Know Your Questions (KYQ) gives classrooms, coding intensives, and learning groups a shared place to ask, discuss, and discover what needs attention. Participants can contribute without creating an account, while instructors get a focused view of the conversation and tools to guide it.
+
+From the question someone hesitated to ask to the topic the whole room wants to revisit, KYQ helps turn curiosity into a more useful conversation.
+
+## A little space for big questions
+
+- **Give everyone a voice.** Participants can post with an optional name and lesson reference, then continue the conversation in replies.
+- **Surface what matters.** Upvotes and Hot, New, and FAQ views help the group find timely and answered questions.
+- **Keep the room in sync.** Live Firestore updates bring new activity into view as it happens.
+- **Guide the conversation.** Instructors can manage questions, set their status, and use presenter mode during a session.
+- **Take the learning with you.** Export questions and replies as Markdown or JSON.
+
+![KYQ homepage showing the introduction and a preview of a question board](docs/images/homepage.png)
+
+## Built for instructors and groups
+
+Create a password-protected board for each course or conversation. Share its link or QR code with your group, and participants can unlock the board to ask, vote, and reply. The instructor dashboard keeps boards, sharing, settings, and exports close at hand.
+
+![Instructor dashboard with board management and board creation](docs/images/instructor-dashboard.png)
+
+Questions and replies support formatting such as bold, italics, lists, and tables. Markdown exports preserve that formatting, making it easy to keep a record or bring the conversation into another workflow.
+
+![Export dialog offering Markdown and JSON downloads](docs/images/export-board.png)
+
+## Under the hood
+
+KYQ is a Next.js App Router application built with React, TypeScript, and Tailwind CSS. Firebase Authentication provides browser identities and board-specific access; Cloud Firestore stores boards and questions and delivers live updates. Next.js route handlers use the Firebase Admin SDK for server-side operations such as board access, management, and exports. Firestore security rules enforce board access for client operations.
+
+| Location | Purpose |
+| --- | --- |
+| `app/` | Pages, board and instructor interfaces, and API route handlers |
+| `lib/` | Shared types, Firebase client configuration, and server utilities |
+| `firestore.rules` | Firestore access and validation rules |
+| `scripts/` | Firestore rules and board API integration scripts |
 
 ## Getting started
 
