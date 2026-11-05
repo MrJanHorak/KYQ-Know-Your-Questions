@@ -29,5 +29,9 @@ try {
   const seed=await fetch(`${root}/boards/${id}/questions/test`,{method:'PATCH',headers:{Authorization:'Bearer owner','Content-Type':'application/json'},body:JSON.stringify({fields:{question:{stringValue:'Test question'},authorName:{stringValue:'Tester'},status:{stringValue:'unanswered'},upvoteCount:{integerValue:'1'},createdAt:{timestampValue:'2026-01-01T00:00:00Z'},replies:{arrayValue:{values:[{mapValue:{fields:{author:{stringValue:'Teacher'},text:{stringValue:'Test response'},createdAt:{stringValue:'2026-01-01T00:00:00Z'}}}}]}}}})}); assert(seed.ok);
   assert.equal((await fetch(`${base}/api/boards/export?boardId=${id}&format=json`)).status,401);
   for(const format of ['json','md']) {const response=await fetch(`${base}/api/boards/export?boardId=${id}&format=${format}`,{headers:{cookie}});assert.equal(response.status,200); const content=await response.text();assert(content.includes('Test question') && content.includes('Test response'),`${format} export missing content`);}
-  console.log('Admin login, board creation, password change and access, Firebase token, and both exports passed.');
+  const nested=await fetch(`${root}/boards/${id}/questions/test/notes/test`,{method:'PATCH',headers:{Authorization:'Bearer owner','Content-Type':'application/json'},body:JSON.stringify({fields:{text:{stringValue:'Nested test'}}})}); assert(nested.ok);
+  assert.equal((await fetch(`${base}/api/boards/${id}`,{method:'DELETE'})).status,401,'Board deletion must require admin');
+  assert.equal((await fetch(`${base}/api/boards/${id}`,{method:'DELETE',headers:{cookie}})).status,200,'Admin board deletion failed');
+  for (const path of [`boards/${id}`,`boards/${id}/questions/test`,`boards/${id}/questions/test/notes/test`]) assert.equal((await fetch(`${root}/${path}`,{headers:{Authorization:'Bearer owner'}})).status,404,`${path} was not deleted`);
+  console.log('Admin login, board access, password change, exports, and recursive deletion passed.');
 } finally {if(auth.currentUser) await deleteUser(auth.currentUser).catch(()=>{}); await deleteApp(app); server.kill();}
