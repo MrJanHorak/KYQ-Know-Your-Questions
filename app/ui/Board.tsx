@@ -29,6 +29,7 @@ import {
   X,
 } from 'lucide-react';
 import { auth, configured, db } from '../../lib/firebase';
+import { instructorAuth } from '../../lib/instructorFirebase';
 import type { Question, Status } from '../../lib/types';
 import Dialog from './Dialog';
 import ReplyEditor from './ReplyEditor';
@@ -96,6 +97,8 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
   const [replyDraft, setReplyDraft] = useState('');
   const [replyError, setReplyError] = useState('');
   const [unlocked, setUnlocked] = useState(false);
+  const [adminAuthorized, setAdminAuthorized] = useState(!admin);
+  const [dashboardUrl, setDashboardUrl] = useState('/admin');
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [boardName, setBoardName] = useState('The question board');
   const [password, setPassword] = useState('');
@@ -236,9 +239,11 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
     if (!auth?.currentUser) { setError('Could not connect. Refresh the page and try again.'); return; }
     setBusy(true);
     try {
+    if (instructorAuth) await instructorAuth.authStateReady();
+    const instructorToken = instructor ? await instructorAuth?.currentUser?.getIdToken() : undefined;
     const r = await fetch('/api/boards/access', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(instructorToken ? {Authorization:`Bearer ${instructorToken}`} : {}) },
       body: JSON.stringify({ boardId, password, idToken: await auth.currentUser.getIdToken(), instructor }),
     });
     if (r.ok) {
@@ -246,15 +251,19 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
       await signInWithCustomToken(auth, data.token);
       setBoardName(data.name);
       setUnlocked(true);
+      if (instructor) setAdminAuthorized(true);
+      if (instructorToken) setDashboardUrl('/instructor');
       setPassword('');
       setError('');
     } else setError(r.status === 429 ? 'Too many attempts. Try again in 10 minutes.' : r.status === 401 ? (instructor ? 'Please sign in to the instructor dashboard first.' : 'Incorrect board link or password.') : 'Could not open the board. Please try again.');
     } catch { setError('Could not connect to the board. Please try again.'); } finally { setBusy(false); }
   }
-  useEffect(() => { if (admin && uid && !checkingAccess && !unlocked) void openBoard(true); }, [admin, uid, checkingAccess]);
+  useEffect(() => { if (admin && uid && !checkingAccess && !adminAuthorized) void openBoard(true); }, [admin, uid, checkingAccess]);
   async function action(id: string, operation: string, value?: string, lessonReference?: string) {
     try {
-      const r = await fetch('/api/admin', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ boardId, id, operation, value, lessonReference }) });
+      if (instructorAuth) await instructorAuth.authStateReady();
+      const token = await instructorAuth?.currentUser?.getIdToken();
+      const r = await fetch('/api/admin', { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? {Authorization:`Bearer ${token}`} : {}) }, body: JSON.stringify({ boardId, id, operation, value, lessonReference }) });
       if (!r.ok) throw new Error();
       return true;
     } catch { setError('Admin action failed. Please try again.'); return false; }
@@ -271,7 +280,7 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
     } catch { setDialogError('Could not save your changes. Please try again.'); }
     finally { setBusy(false); }
   }
-  if (!unlocked || checkingAccess)
+  if (!unlocked || checkingAccess || (admin && !adminAuthorized))
     return (
       <main className='login-wrap'>
         <form className='login card' onSubmit={e=>{e.preventDefault(); void openBoard(admin);}}>
@@ -296,7 +305,7 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
             <LockKeyhole size={16} /> Unlock board
           </button></>}
           {error && <p className='error' role='alert'>{error}</p>}
-          {admin && <><button className='primary' type='button' disabled={busy || checkingAccess || !uid} onClick={()=>void openBoard(true)}>Open board</button><a href='/admin'>← Back to your boards</a></>}
+          {admin && <><button className='primary' type='button' disabled={busy || checkingAccess || !uid} onClick={()=>void openBoard(true)}>Open board</button><a href={dashboardUrl}>← Back to your boards</a></>}
         </form>
       </main>
     );
@@ -313,7 +322,7 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
             </span>
           </a>
           <div className='top-right'>
-            {admin ? <a className='outline' href='/admin'>Your boards</a> : <button className='outline' onClick={async()=>{ if (auth) {setUnlocked(false); setQuestions([]); await signOut(auth);} }}>Lock board</button>}
+            {admin ? <a className='outline' href={dashboardUrl}>Your boards</a> : <button className='outline' onClick={async()=>{ if (auth) {setUnlocked(false); setQuestions([]); await signOut(auth);} }}>Lock board</button>}
             <span className='live'>
               <i /> LIVE BOARD
             </span>

@@ -1,12 +1,13 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, isAdmin, validId } from '../../../../lib/server';
+import { adminDb, validId } from '../../../../lib/server';
+import { canManageBoard } from '../../../../lib/instructorServer';
 
 export async function DELETE(req: NextRequest, {params}: {params: Promise<{boardId:string}>}) {
-  if (!isAdmin(req)) return NextResponse.json({error:'Unauthorized'}, {status:401});
   const {boardId} = await params;
   if (!validId(boardId)) return NextResponse.json({error:'Invalid board'}, {status:400});
   try {
+    if (!await canManageBoard(req, boardId)) return NextResponse.json({error:'Unauthorized'}, {status:401});
     const db = adminDb();
     const ref = db.collection('boards').doc(boardId);
     const exists = await db.runTransaction(async tx => {

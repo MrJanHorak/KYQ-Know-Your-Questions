@@ -34,7 +34,7 @@ Questions and replies support formatting such as bold, italics, lists, and table
 
 KYQ is a Next.js App Router application built with React, TypeScript, and Tailwind CSS. Firebase Authentication provides browser identities and board-specific access; Cloud Firestore stores boards and questions and delivers live updates. Next.js route handlers use the Firebase Admin SDK for server-side operations such as board access, management, and exports. Firestore security rules enforce board access for client operations.
 
-An initial instructor account flow is available at `/instructor`. It creates a separate Firebase email/password identity and, after email verification, a personal team. This is an incremental foundation: instructor accounts are not yet connected to boards, invitations, or the existing `/admin` dashboard. The existing shared admin password remains necessary until board-level authorization and migration are implemented. See [the instructor accounts plan](docs/instructor-accounts.md).
+The instructor account area at `/instructor` uses a separate Firebase email/password identity and creates a personal team after email verification. Team owners can create and manage their own boards there. This remains an incremental transition: invitations and migration of existing boards are not yet available, and the shared admin password is still required for legacy boards at `/admin`. Team-owned boards are excluded from the shared-password dashboard. See [the instructor accounts plan](docs/instructor-accounts.md).
 
 | Location | Purpose |
 | --- | --- |
