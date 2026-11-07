@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     if (cursor) query = query.startAfter(cursor);
     const result = await query.get();
     const page = result.docs.slice(0,50);
-    return NextResponse.json({boards:page.filter(board => !board.get('deleting')).map(board => ({id:board.id, name:board.get('name')})), nextCursor:result.size > 50 ? page[page.length-1].id : null}, {headers:{'Cache-Control':'no-store'}});
+    return NextResponse.json({boards:page.map(board => ({id:board.id, name:board.get('name'), deleting:board.get('deleting') === true})), nextCursor:result.size > 50 ? page[page.length-1].id : null}, {headers:{'Cache-Control':'no-store'}});
   } catch { return NextResponse.json({error:'Could not load boards.'}, {status:500}); }
 }
 

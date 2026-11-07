@@ -47,6 +47,14 @@ try {
   }
   assert.equal((await request(`/api/boards/export?boardId=${board.id}&format=json`, owner)).status,200);
   assert.equal((await request('/api/boards/password', owner, 'PATCH', {boardId:board.id,password:'another-password'})).status,200);
+  // Simulate an interrupted deletion, including data left in a nested collection.
+  await db.collection('boards').doc(board.id).update({deleting:true, accessVersion:2});
+  await db.collection('boards').doc(board.id).collection('questions').doc('remaining').set({question:'Remaining data'});
+  const interruptedList = await (await request('/api/instructor/boards', owner)).json();
+  assert.equal(interruptedList.boards.find(item=>item.id===board.id)?.deleting, true, 'Interrupted deletions must remain visible to the owner');
+  const outsiderAfterInterruption = await (await request('/api/instructor/boards', outsider)).json();
+  assert(!outsiderAfterInterruption.boards.some(item=>item.id===board.id));
   assert.equal((await request(`/api/boards/${board.id}`, owner, 'DELETE')).status,200);
+  assert.equal((await db.collection('boards').doc(board.id).collection('questions').doc('remaining').get()).exists, false);
   console.log('Team ownership and legacy isolation checks passed.');
 } finally { server.kill(); }

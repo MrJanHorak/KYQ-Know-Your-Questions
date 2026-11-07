@@ -5,7 +5,7 @@ import { ArrowUpRight, Download, Settings2, Share2 } from 'lucide-react';
 import Dialog from './Dialog';
 import ShareBoard from './ShareBoard';
 
-type Board = {id:string; name:string};
+type Board = {id:string; name:string; deleting?:boolean};
 export default function InstructorBoards({user}: {user:User}) {
   const [boards, setBoards] = useState<Board[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -15,7 +15,7 @@ export default function InstructorBoards({user}: {user:User}) {
   const [createMismatch, setCreateMismatch] = useState(false);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  const [dialog, setDialog] = useState<{type:'share'|'export'|'settings'; board:Board} | null>(null);
+  const [dialog, setDialog] = useState<{type:'share'|'export'|'settings'|'retry'; board:Board} | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [dialogMessage, setDialogMessage] = useState('');
   const [passwordOpen, setPasswordOpen] = useState(false);
@@ -57,7 +57,7 @@ export default function InstructorBoards({user}: {user:User}) {
   async function remove(board:Board) {
     setBusy(true); setDialogMessage('');
     try { const response = await request(`/api/boards/${encodeURIComponent(board.id)}`, {method:'DELETE'}); if (!response.ok) throw new Error(); setConfirmDelete(false); setDialog(null); setBoards(current=>current.filter(item=>item.id!==board.id)); }
-    catch { setDialogMessage('Could not delete the board.'); } finally { setBusy(false); }
+    catch { setDialogMessage('Could not delete the board. Please try again.'); await load().catch(() => {}); } finally { setBusy(false); }
   }
   async function changePassword(event:React.FormEvent, board:Board) {
     event.preventDefault();
@@ -69,12 +69,13 @@ export default function InstructorBoards({user}: {user:User}) {
       setPasswordOpen(false); setNewPassword(''); setConfirmNewPassword(''); setDialogMessage('Password changed. Participants must unlock the board again.');
     } catch { setDialogMessage('Could not change the board password.'); } finally { setBusy(false); }
   }
-  function openDialog(type:'share'|'export'|'settings', board:Board) {
+  function openDialog(type:'share'|'export'|'settings'|'retry', board:Board) {
     setDialogMessage(''); setPasswordOpen(false); setNewPassword(''); setConfirmNewPassword(''); setChangeMismatch(false); setDialog({type,board});
   }
   return <section className='instructor-boards'>
     {message && <p role='status'>{message}</p>}
     {dialog?.type === 'share' && <ShareBoard board={dialog.board} onClose={()=>setDialog(null)}/>}
+    {dialog?.type === 'retry' && <Dialog title='Finish deleting board?' onClose={()=>{if (!busy) setDialog(null);}}><p>Deletion of “{dialog.board.name}” was interrupted. Finish permanently deleting the board and any remaining questions and replies.</p>{dialogMessage && <p role='alert'>{dialogMessage}</p>}<div className='dialog-actions'><button className='outline' disabled={busy} onClick={()=>setDialog(null)}>Cancel</button><button className='primary danger' disabled={busy} onClick={()=>void remove(dialog.board)}>{busy ? 'Deleting…' : 'Finish deletion'}</button></div></Dialog>}
     {dialog?.type === 'export' && <Dialog title='Export board' onClose={()=>setDialog(null)}><p>Download questions and replies from “{dialog.board.name}”.</p><div className='export-options'><button className='outline' type='button' onClick={()=>void download(dialog.board,'md')}>Download Markdown</button><button className='outline' type='button' onClick={()=>void download(dialog.board,'json')}>Download JSON</button></div>{dialogMessage && <p role='status'>{dialogMessage}</p>}</Dialog>}
     {dialog?.type === 'settings' && <Dialog title='Board settings' onClose={()=>{if (!busy) setDialog(null);}}><p>Manage access to “{dialog.board.name}”.</p>
       <div className='password-editor'><button type='button' className='outline' onClick={()=>{setPasswordOpen(!passwordOpen);setNewPassword('');setConfirmNewPassword('');setChangeMismatch(false);setDialogMessage('');}}>{passwordOpen ? 'Cancel' : 'Change password'}</button>
@@ -88,12 +89,14 @@ export default function InstructorBoards({user}: {user:User}) {
     <p>Share a board link and its password with your participants.</p>
     {boards.map(board => <article className='admin-board' key={board.id}>
       <h3>{board.name}</h3>
-      <p>Private board · Share its link and password with your group</p>
+      <p>{board.deleting ? 'Deletion was interrupted. This board is unavailable until deletion is completed.' : 'Private board · Share its link and password with your group'}</p>
       <div className='board-controls'>
+        {board.deleting ? <button type='button' className='board-control' onClick={()=>openDialog('retry',board)}>Finish deletion</button> : <>
         <a className='board-control board-manage' href={`/admin/boards/${encodeURIComponent(board.id)}`}>Manage <ArrowUpRight size={15}/></a>
         <button type='button' className='board-control' onClick={()=>openDialog('share',board)}><Share2 size={15}/> Share</button>
         <button type='button' className='board-control' onClick={()=>openDialog('export',board)}><Download size={15}/> Export</button>
         <button type='button' className='board-control' onClick={()=>openDialog('settings',board)}><Settings2 size={15}/> Settings</button>
+        </>}
       </div>
     </article>)}
     {!boards.length && <div className='empty instructor-empty'><strong>No boards yet</strong><span>Create your first board to get started.</span></div>}
