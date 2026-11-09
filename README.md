@@ -34,7 +34,7 @@ Questions and replies support formatting such as bold, italics, lists, and table
 
 KYQ is a Next.js App Router application built with React, TypeScript, and Tailwind CSS. Firebase Authentication provides browser identities and board-specific access; Cloud Firestore stores boards and questions and delivers live updates. Next.js route handlers use the Firebase Admin SDK for server-side operations such as board access, management, and exports. Firestore security rules enforce board access for client operations.
 
-The instructor account area at `/instructor` uses a separate Firebase email/password identity and creates a personal team after email verification. Team owners can create and manage their own boards there. Invitations and migration of unassigned boards are not yet available. See [the instructor accounts plan](docs/instructor-accounts.md).
+The instructor account area at `/instructor` uses a separate Firebase email/password identity and creates a personal team after email verification. Owners can invite managers to individual boards with different permission levels. See [instructor accounts and roles](docs/instructor-accounts.md).
 
 | Location | Purpose |
 | --- | --- |
@@ -105,9 +105,11 @@ The instructor account area at `/instructor` uses a separate Firebase email/pass
 Questions and replies support visual formatting, including bold, italics, lists, and tables. Their Markdown formatting is retained in Markdown exports. The 2,000-character limit and editor counter measure the stored Markdown, including formatting characters.
 
 Changing a board password requires participants to unlock it again. Deleting a board permanently removes its questions and replies; export it first if you need a copy.
-If deletion is interrupted, the personal dashboard shows the board as unavailable and offers **Finish deletion** to retry. Instructor-to-instructor invitations are not yet available.
+If deletion is interrupted, the dashboard shows the board as unavailable and offers authorized admins **Finish deletion** to retry.
 
-Boards created under the former shared instructor login are preserved in Firestore but cannot be accessed or managed until assigned to a team. There is no migration tool yet. Export or plan an ownership migration before deploying this change if those boards are still needed; no board is automatically claimed.
+Owners and board admins can open **Managers** to create a board-specific invitation for a verified email address. Copy and share the one-time link with that person; it expires after seven days and can be revoked. Responders can reply and change question status; moderators can also delete questions and replies; managers can also change the participant password and export; board admins can also edit questions, manage access, and delete the board. Each role includes the preceding roles. The owner retains access and creates boards for the team.
+
+Boards created under the former shared instructor login remain unassigned and inaccessible. Migrating them is outside the current scope.
 
 ## Privacy and deployment
 

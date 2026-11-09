@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('boardId'); const format = req.nextUrl.searchParams.get('format');
   if (!validId(id) || !['json','md'].includes(format || '')) return NextResponse.json({error:'Invalid request'}, {status:400});
   try {
-    if (!await canManageBoard(req, id)) return NextResponse.json({error:'Unauthorized'}, {status:401});
+    if (!await canManageBoard(req, id, 'manager')) return NextResponse.json({error:'Unauthorized'}, {status:401});
     const ref = adminDb().collection('boards').doc(id); const board = await ref.get(); if (!board.exists) return NextResponse.json({error:'Board not found'}, {status:404});
     const snap = await ref.collection('questions').orderBy('createdAt','asc').get();
     const questions = snap.docs.map(d=>{ const q=d.data(); return {id:d.id, question:text(q.question), lessonReference:text(q.lessonReference), authorName:text(q.authorName)||'Anonymous', upvoteCount:q.upvoteCount || 0, status:text(q.status), createdAt:date(q.createdAt), replies:Array.isArray(q.replies) ? q.replies.map((r: Record<string,unknown>)=>({author:text(r.author)||'Anonymous',text:text(r.text),createdAt:date(r.createdAt)})) : []}; });

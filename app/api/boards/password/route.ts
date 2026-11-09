@@ -7,7 +7,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const {boardId, password} = await req.json();
     if (!validId(boardId) || typeof password !== 'string' || password.length < 8 || password.length > 128) return NextResponse.json({error:'Use a password of 8–128 characters.'}, {status:400});
-    if (!await canManageBoard(req, boardId)) return NextResponse.json({error:'Unauthorized'}, {status:401});
+    if (!await canManageBoard(req, boardId, 'manager')) return NextResponse.json({error:'Unauthorized'}, {status:401});
     const ref = adminDb().collection('boards').doc(boardId);
     const passwordHash = hashPassword(password);
     const updated = await adminDb().runTransaction(async tx => {

@@ -18,17 +18,29 @@ export async function instructorIdentity(req: NextRequest): Promise<DecodedIdTok
   }
 }
 
-export async function canManageBoard(req: NextRequest, boardId: string): Promise<boolean> {
+export type BoardRole = 'responder' | 'moderator' | 'manager' | 'admin' | 'owner';
+const levels: Record<BoardRole, number> = {responder:1, moderator:2, manager:3, admin:4, owner:5};
+export function isBoardRole(role: unknown): role is Exclude<BoardRole, 'owner'> {
+  return role === 'responder' || role === 'moderator' || role === 'manager' || role === 'admin';
+}
+export async function boardRole(req: NextRequest, boardId: string): Promise<BoardRole | null> {
   const db = adminDb();
   const board = await db.collection('boards').doc(boardId).get();
-  if (!board.exists) return false;
+  if (!board.exists) return null;
   const teamId = board.get('teamId');
-  if (typeof teamId !== 'string') return false;
+  if (typeof teamId !== 'string') return null;
   const user = await instructorIdentity(req);
-  if (!user) return false;
+  if (!user) return null;
   const [team, membership] = await Promise.all([
     db.collection('teams').doc(teamId).get(),
     board.ref.collection('admins').doc(user.uid).get(),
   ]);
-  return team.exists && (team.get('ownerUid') === user.uid || membership.get('role') === 'admin');
+  if (!team.exists) return null;
+  if (team.get('ownerUid') === user.uid) return 'owner';
+  const role = membership.get('role');
+  return isBoardRole(role) ? role : null;
+}
+export async function canManageBoard(req: NextRequest, boardId: string, minimum: BoardRole = 'responder'): Promise<boolean> {
+  const role = await boardRole(req, boardId);
+  return role !== null && levels[role] >= levels[minimum];
 }

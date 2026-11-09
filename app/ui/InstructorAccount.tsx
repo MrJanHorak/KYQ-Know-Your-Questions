@@ -106,7 +106,7 @@ export default function InstructorAccount() {
     {!ready ? <p>Loading your account…</p> : !instructorAuth ? <p>Firebase is not configured.</p> : user ? <>
       <h1>{teamReady ? 'Your account is ready.' : accountState === 'checking' ? 'Checking your account…' : accountState === 'unverified' ? 'Verify your email.' : 'Check your account.'}</h1>
       <p>Signed in as {user.email}.</p>
-      {teamReady ? <><p>Your personal team is ready. Invitations are still being built.</p><InstructorBoards user={user}/></> : null}
+      {teamReady ? <><p>Your personal team is ready.</p><InstructorBoards user={user}/></> : null}
       <div className={teamReady ? 'account-actions dashboard-actions' : 'account-actions'}>
       {!teamReady && accountState !== 'checking' && <>
         <button className='primary' disabled={busy} onClick={refresh}>{accountState === 'unverified' ? 'I have verified my email' : 'Retry account check'}</button>
@@ -116,7 +116,7 @@ export default function InstructorAccount() {
       </div>
     </> : <form onSubmit={submit}>
       <h1>{create ? 'Create your account.' : 'Welcome back.'}</h1>
-      <p>Sign in or create an account to manage your own boards. Shared instructor management is still being built.</p>
+      <p>Sign in or create an account to manage your boards.</p>
       <label>EMAIL<input type='email' autoComplete='email' value={email} onChange={e=>setEmail(e.target.value)} required /></label>
       <label>PASSWORD<input type='password' autoComplete={create ? 'new-password' : 'current-password'} minLength={6} value={password} onChange={e=>{setPassword(e.target.value);setPasswordMismatch(false);}} required /></label>
       {create && <><label>CONFIRM PASSWORD<input type='password' autoComplete='new-password' value={confirmPassword} onChange={e=>{setConfirmPassword(e.target.value);setPasswordMismatch(false);}} aria-invalid={passwordMismatch} aria-describedby={passwordMismatch ? 'password-mismatch' : undefined} required /></label>{passwordMismatch && <p id='password-mismatch' className='account-error' role='alert'>Passwords do not match. Please try again.</p>}</>}

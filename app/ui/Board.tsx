@@ -98,6 +98,8 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
   const [replyError, setReplyError] = useState('');
   const [unlocked, setUnlocked] = useState(false);
   const [adminAuthorized, setAdminAuthorized] = useState(!admin);
+  const [boardRole, setBoardRole] = useState('');
+  const canModerate = ['moderator','manager','admin','owner'].includes(boardRole);
   const dashboardUrl = '/instructor';
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [boardName, setBoardName] = useState('The question board');
@@ -250,6 +252,7 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
       const data = await r.json();
       await signInWithCustomToken(auth, data.token);
       setBoardName(data.name);
+      if (instructor) setBoardRole(data.role || '');
       setUnlocked(true);
       if (instructor) setAdminAuthorized(true);
       setPassword('');
@@ -258,11 +261,11 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
     } catch { setError('Could not connect to the board. Please try again.'); } finally { setBusy(false); }
   }
   useEffect(() => { if (admin && uid && !checkingAccess && !adminAuthorized) void openBoard(true); }, [admin, uid, checkingAccess]);
-  async function action(id: string, operation: string, value?: string, lessonReference?: string) {
+  async function action(id: string, operation: string, value?: string, lessonReference?: string, replyId?: string) {
     try {
       if (instructorAuth) await instructorAuth.authStateReady();
       const token = await instructorAuth?.currentUser?.getIdToken();
-      const r = await fetch('/api/admin', { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? {Authorization:`Bearer ${token}`} : {}) }, body: JSON.stringify({ boardId, id, operation, value, lessonReference }) });
+      const r = await fetch('/api/admin', { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? {Authorization:`Bearer ${token}`} : {}) }, body: JSON.stringify({ boardId, id, operation, value, lessonReference, replyId }) });
       if (!r.ok) throw new Error();
       return true;
     } catch { setError('Admin action failed. Please try again.'); return false; }
@@ -496,8 +499,8 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
                       {!presenter && (admin || q.authorUid === uid) && (
                         <div className='admin-actions'>
                           {admin && <><button onClick={() => action(q.id, 'status', 'in_review')}>In review</button><button onClick={() => action(q.id, 'status', 'answered')}>Mark answered</button></>}
-                          <button onClick={() => startEdit(q)}>Edit{!admin ? ' your question' : ''}</button>
-                          {admin && <button onClick={() => { setDialogError(''); setDeleting(q); }}>Delete</button>}
+                          {(!admin || ['admin','owner'].includes(boardRole)) && <button onClick={() => startEdit(q)}>Edit{!admin ? ' your question' : ''}</button>}
+                          {admin && canModerate && <button onClick={() => { setDialogError(''); setDeleting(q); }}>Delete</button>}
                         </div>
                       )}
                     </div>
@@ -627,7 +630,7 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
                       {editingReply === r.id && r.id ? <form onSubmit={e => { e.preventDefault(); void saveReply(true); }} className='reply-edit'>
                         <ReplyEditor label='EDIT YOUR REPLY' autoFocus value={replyDraft} onChange={setReplyDraft} />
                         <div className='dialog-actions'><button type='button' className='outline' disabled={busy} onClick={() => { setEditingReply(null); setReplyError(''); }}>Cancel</button><button className='primary' disabled={busy || !replyDraft.trim() || replyDraft.length > 2000}>{busy ? 'Saving…' : 'Save changes'}</button></div>
-                      </form> : <><div className='reply-markdown'><ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml disallowedElements={['img']}>{r.text}</ReactMarkdown></div>{r.id && r.authorUid === uid && <button type='button' className='outline edit-reply-button' onClick={() => { setEditingReply(r.id!); setReplyDraft(r.text); setReplyError(''); }}>Edit your reply</button>}</>}
+                      </form> : <><div className='reply-markdown'><ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml disallowedElements={['img']}>{r.text}</ReactMarkdown></div>{r.id && r.authorUid === uid && <button type='button' className='outline edit-reply-button' onClick={() => { setEditingReply(r.id!); setReplyDraft(r.text); setReplyError(''); }}>Edit your reply</button>}{admin && canModerate && r.id && <button type='button' className='outline edit-reply-button' onClick={() => { if (window.confirm('Delete this reply?')) void action(active.id, 'deleteReply', undefined, undefined, r.id); }}>Delete reply</button>}</>}
                     </div>
                   </div>
                 ))
