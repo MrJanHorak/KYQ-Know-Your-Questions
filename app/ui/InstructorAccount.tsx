@@ -103,7 +103,7 @@ export default function InstructorAccount() {
       </div>
     </> : <form onSubmit={submit}>
       <h1>{create ? 'Create your account.' : 'Welcome back.'}</h1>
-      <p>Instructor accounts are being prepared for teams and shared board management.</p>
+      <p>Sign in or create an account to manage your own boards. Shared instructor management is still being built.</p>
       <label>EMAIL<input type='email' autoComplete='email' value={email} onChange={e=>setEmail(e.target.value)} required /></label>
       <label>PASSWORD<input type='password' autoComplete={create ? 'new-password' : 'current-password'} minLength={6} value={password} onChange={e=>{setPassword(e.target.value);setPasswordMismatch(false);}} required /></label>
       {create && <><label>CONFIRM PASSWORD<input type='password' autoComplete='new-password' value={confirmPassword} onChange={e=>{setConfirmPassword(e.target.value);setPasswordMismatch(false);}} aria-invalid={passwordMismatch} aria-describedby={passwordMismatch ? 'password-mismatch' : undefined} required /></label>{passwordMismatch && <p id='password-mismatch' className='account-error' role='alert'>Passwords do not match. Please try again.</p>}</>}
@@ -114,6 +114,6 @@ export default function InstructorAccount() {
       {!create && <button type='button' className='outline' disabled={busy || !email.trim()} onClick={async () => { if (!instructorAuth) return; setBusy(true); try { await sendPasswordResetEmail(instructorAuth, email.trim()); setMessage('If an account exists for that email, a reset link has been sent.'); } catch { setMessage('Could not request a reset link. Please try again later.'); } finally { setBusy(false); } }}>Reset password</button>}
       </div>
     </form>}
-    {message && <p role='status'>{message}</p>}<a href='/admin'>Go to the existing instructor dashboard →</a><a href='/'>← Back to KYQ</a>
+    {message && <p role='status'>{message}</p>}<a href='/'>← Back to KYQ</a>
   </div></main>;
 }

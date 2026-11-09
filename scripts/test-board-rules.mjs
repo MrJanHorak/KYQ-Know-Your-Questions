@@ -3,7 +3,7 @@ const root = `http://${process.env.FIRESTORE_EMULATOR_HOST}/v1/projects/demo-kyq
 const jwt = (claims={}) => {const enc=v=>Buffer.from(JSON.stringify(v)).toString('base64url'); return `${enc({alg:'none',typ:'JWT'})}.${enc({iss:'https://securetoken.google.com/demo-kyq',aud:'demo-kyq',sub:'test-user',user_id:'test-user',iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+3600,firebase:{sign_in_provider:'custom'},...claims})}.`;};
 const get = (path,token) => fetch(`${root}/${path}`,{headers:token?{Authorization:`Bearer ${token}`}:{}});
 const ownerHeaders={Authorization:'Bearer owner','Content-Type':'application/json'};
-const board=await fetch(`${root}/boards/board-a`,{method:'PATCH',headers:ownerHeaders,body:JSON.stringify({fields:{accessVersion:{integerValue:'0'}}})});
+const board=await fetch(`${root}/boards/board-a`,{method:'PATCH',headers:ownerHeaders,body:JSON.stringify({fields:{teamId:{stringValue:'team-a'},accessVersion:{integerValue:'0'}}})});
 assert(board.ok, 'Could not seed board');
 const seed = await fetch(`${root}/boards/board-a/questions/q1`,{method:'PATCH',headers:ownerHeaders,body:JSON.stringify({fields:{question:{stringValue:'Private question'}}})});
 assert(seed.ok, 'Could not seed emulator');
@@ -11,10 +11,12 @@ assert.equal((await get('boards/board-a/questions/q1')).status,403,'Unauthentica
 assert.equal((await get('boards/board-a/questions/q1',jwt())).status,403,'Anonymous access should fail');
 assert.equal((await get('boards/board-a/questions/q1',jwt({boardId:'board-b'}))).status,403,'Another board must not be readable');
 assert.equal((await get('boards/board-a/questions/q1',jwt({boardId:'board-a'}))).status,200,'Correct board should be readable');
-const changed=await fetch(`${root}/boards/board-a`,{method:'PATCH',headers:ownerHeaders,body:JSON.stringify({fields:{accessVersion:{integerValue:'1'}}})});
+const changed=await fetch(`${root}/boards/board-a`,{method:'PATCH',headers:ownerHeaders,body:JSON.stringify({fields:{teamId:{stringValue:'team-a'},accessVersion:{integerValue:'1'}}})});
 assert(changed.ok, 'Could not update board access version');
 assert.equal((await get('boards/board-a/questions/q1',jwt({boardId:'board-a'}))).status,403,'Old board token must be rejected after a password change');
 assert.equal((await get('boards/board-a/questions/q1',jwt({boardId:'board-a',accessVersion:1}))).status,200,'New board token should have access');
 assert.equal((await get('boards/board-a',jwt({boardId:'board-a'}))).status,403,'Board password metadata must not be readable');
 assert.equal((await get('questions/legacy',jwt({boardId:'board-a'}))).status,403,'Legacy collection must not be readable');
+await fetch(`${root}/boards/board-a`,{method:'PATCH',headers:ownerHeaders,body:JSON.stringify({fields:{accessVersion:{integerValue:'1'}}})});
+assert.equal((await get('boards/board-a/questions/q1',jwt({boardId:'board-a',accessVersion:1}))).status,403,'Unassigned boards must reject existing tokens');
 console.log('Board access isolation rules passed.');

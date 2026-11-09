@@ -1,6 +1,7 @@
 // Run only against Firebase emulators; never seed or delete production data.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createHmac, scryptSync } from 'node:crypto';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -11,7 +12,7 @@ const app = initializeApp({projectId});
 const auth = getAuth(app);
 const db = getFirestore(app);
 const base = 'http://127.0.0.1:3198';
-const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', '3198'], {env:{...process.env, NEXT_PUBLIC_FIREBASE_PROJECT_ID:projectId, ADMIN_PASSWORD:'legacy-test-password', SESSION_SECRET:'emulator-only-secret'}, stdio:'inherit'});
+const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', '3198'], {env:{...process.env, NEXT_PUBLIC_FIREBASE_PROJECT_ID:projectId, SESSION_SECRET:'emulator-only-secret'}, stdio:'inherit'});
 async function token(uid) {
   await auth.createUser({uid, email:`${uid}@example.test`, emailVerified:true});
   const custom = await auth.createCustomToken(uid);
@@ -35,18 +36,33 @@ try {
   const outsiderList = await (await request('/api/instructor/boards', outsider)).json();
   assert(ownerList.boards.some(item=>item.id===board.id));
   assert(!outsiderList.boards.some(item=>item.id===board.id));
-  const login = await request('/api/admin', null, 'POST', {password:'legacy-test-password'});
-  assert.equal(login.status,200); const cookie = login.headers.get('set-cookie').split(';')[0];
-  const legacyList = await (await request('/api/boards', null, 'GET', null, cookie)).json();
-  assert(!legacyList.boards.some(item=>item.id===board.id));
+  assert.equal((await request('/api/admin', null, 'POST', {password:'legacy-test-password'})).status,405);
+  assert.equal((await request('/api/boards', null)).status,404);
+  const expires = String(Date.now() + 3600000);
+  const signature = createHmac('sha256', 'emulator-only-secret').update(`kyq-admin:${expires}`).digest('hex');
+  const cookie = `kyq-admin=${expires}.${signature}`;
   for (const credential of [{token:outsider},{cookie}]) {
     assert.equal((await request(`/api/boards/export?boardId=${board.id}&format=json`, credential.token, 'GET', null, credential.cookie)).status,401);
     assert.equal((await request('/api/boards/password', credential.token, 'PATCH', {boardId:board.id,password:'another-password'}, credential.cookie)).status,401);
     assert.equal((await request('/api/admin', credential.token, 'PATCH', {boardId:board.id,id:'question',operation:'delete'}, credential.cookie)).status,401);
     assert.equal((await request(`/api/boards/${board.id}`, credential.token, 'DELETE', null, credential.cookie)).status,401);
   }
+  assert.equal((await request('/api/boards/access', null, 'POST', {boardId:board.id,password:'test-password',idToken:outsider})).status,200, 'Participants can unlock owned boards');
+  const salt = 'a'.repeat(32);
+  const unowned = await db.collection('boards').add({name:'Unassigned board',accessVersion:0,passwordHash:`${salt}:${scryptSync('test-password', salt, 64).toString('hex')}`});
+  assert.equal((await request(`/api/boards/export?boardId=${unowned.id}&format=json`, owner)).status,401);
+  assert.equal((await request('/api/boards/access', null, 'POST', {boardId:unowned.id,password:'test-password',idToken:outsider})).status,401);
+  await db.collection('boards').doc(board.id).collection('questions').doc('question').set({question:'Test question',authorName:'Tester',status:'unanswered',upvoteCount:0,createdAt:new Date(),replies:[{author:'Teacher',text:'Test response'}]});
+  for (const format of ['json', 'md']) {
+    const response = await request(`/api/boards/export?boardId=${board.id}&format=${format}`, owner);
+    assert.equal(response.status, 200);
+    const content = await response.text();
+    assert(content.includes('Test question') && content.includes('Test response'));
+  }
   assert.equal((await request(`/api/boards/export?boardId=${board.id}&format=json`, owner)).status,200);
   assert.equal((await request('/api/boards/password', owner, 'PATCH', {boardId:board.id,password:'another-password'})).status,200);
+  assert.equal((await request('/api/boards/access', null, 'POST', {boardId:board.id,password:'test-password',idToken:outsider})).status,401);
+  assert.equal((await request('/api/boards/access', null, 'POST', {boardId:board.id,password:'another-password',idToken:outsider})).status,200);
   // Simulate an interrupted deletion, including data left in a nested collection.
   await db.collection('boards').doc(board.id).update({deleting:true, accessVersion:2});
   await db.collection('boards').doc(board.id).collection('questions').doc('remaining').set({question:'Remaining data'});
@@ -56,5 +72,5 @@ try {
   assert(!outsiderAfterInterruption.boards.some(item=>item.id===board.id));
   assert.equal((await request(`/api/boards/${board.id}`, owner, 'DELETE')).status,200);
   assert.equal((await db.collection('boards').doc(board.id).collection('questions').doc('remaining').get()).exists, false);
-  console.log('Team ownership and legacy isolation checks passed.');
+  console.log('Instructor authorization, participant access, and deletion recovery checks passed.');
 } finally { server.kill(); }

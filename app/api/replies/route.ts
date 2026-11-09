@@ -20,7 +20,7 @@ async function changeReply(req: NextRequest, edit: boolean) {
     const questionRef = boardRef.collection('questions').doc(questionId);
     const result = await db.runTransaction(async tx => {
       const [board, question] = await Promise.all([tx.get(boardRef), tx.get(questionRef)]);
-      if (!board.exists || board.data()?.deleting || (board.data()?.accessVersion ?? 0) !== (user.accessVersion ?? 0)) return 403;
+      if (!board.exists || typeof board.data()?.teamId !== 'string' || board.data()?.deleting || (board.data()?.accessVersion ?? 0) !== (user.accessVersion ?? 0)) return 403;
       if (!question.exists) return 404;
       const replies = question.data()?.replies;
       if (!Array.isArray(replies)) return 400;

@@ -5,7 +5,7 @@ export default function Page() {
     <header className='topbar'>
       <div className='top-inner'>
         <a href='/' className='brand'><span className='brand-mark'><Code2 size={20}/></span><span>KYQ <small> / KNOW YOUR QUESTIONS</small></span></a>
-        <div className='top-right'><a className='landing-nav' href='/admin'>Instructor sign in <ArrowRight size={14}/></a><span className='course-pill'>THE QUESTION PORTAL <span>↗</span></span></div>
+        <div className='top-right'><a className='landing-nav' href='/instructor'>Instructor sign in <ArrowRight size={14}/></a><span className='course-pill'>THE QUESTION PORTAL <span>↗</span></span></div>
       </div>
     </header>
     <main className='page landing-page'>
@@ -34,7 +34,7 @@ export default function Page() {
           <div className='landing-participant'><div className='landing-participant-icon'><Link2 size={18}/></div><div><strong>Joining a board?</strong><p>Open the board link from your instructor and enter the shared password. No account needed.</p></div></div>
         </section>
         <aside>
-          <div className='ask-card landing-cta'><div className='ask-icon'><Plus size={22}/></div><span className='eyebrow'>FOR INSTRUCTORS</span><h2>Start a conversation<span className='period'>.</span></h2><p>Create a private board for your class or group, then invite everyone in.</p><a className='primary' href='/admin'>Go to instructor dashboard <ArrowRight size={17}/></a><div className='form-foot'><LockKeyhole size={13}/> INSTRUCTOR PASSWORD REQUIRED</div></div>
+          <div className='ask-card landing-cta'><div className='ask-icon'><Plus size={22}/></div><span className='eyebrow'>FOR INSTRUCTORS</span><h2>Start a conversation<span className='period'>.</span></h2><p>Create a private board for your class or group, then share it with participants.</p><a className='primary' href='/instructor'>Create an account or sign in <ArrowRight size={17}/></a><div className='form-foot'><LockKeyhole size={13}/> VERIFIED INSTRUCTOR ACCOUNT</div></div>
           <div className='aside-note'><span>✳</span><div><strong>Better together</strong><p>Collect questions, share answers, and see what your group wants to explore.</p></div></div>
           <div className='aside-bottom'>MADE FOR CURIOUS MINDS <UsersRound size={14}/></div>
         </aside>

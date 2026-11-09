@@ -34,7 +34,7 @@ Questions and replies support formatting such as bold, italics, lists, and table
 
 KYQ is a Next.js App Router application built with React, TypeScript, and Tailwind CSS. Firebase Authentication provides browser identities and board-specific access; Cloud Firestore stores boards and questions and delivers live updates. Next.js route handlers use the Firebase Admin SDK for server-side operations such as board access, management, and exports. Firestore security rules enforce board access for client operations.
 
-The instructor account area at `/instructor` uses a separate Firebase email/password identity and creates a personal team after email verification. Team owners can create and manage their own boards there. This remains an incremental transition: invitations and migration of existing boards are not yet available, and the shared admin password is still required for legacy boards at `/admin`. Team-owned boards are excluded from the shared-password dashboard. See [the instructor accounts plan](docs/instructor-accounts.md).
+The instructor account area at `/instructor` uses a separate Firebase email/password identity and creates a personal team after email verification. Team owners can create and manage their own boards there. Invitations and migration of unassigned boards are not yet available. See [the instructor accounts plan](docs/instructor-accounts.md).
 
 | Location | Purpose |
 | --- | --- |
@@ -60,14 +60,14 @@ The instructor account area at `/instructor` uses a separate Firebase email/pass
    npm install
    ```
 
-2. Copy `.env.example` to `.env.local` and fill in the Firebase web app configuration from the Firebase console. Set a strong instructor password and a long, random session secret.
+2. Copy `.env.example` to `.env.local` and fill in the Firebase web app configuration from the Firebase console. Set a long, random session secret for password-attempt identifiers.
 
 3. Give the server Firebase Admin credentials using **one** of these options:
    - Set `GOOGLE_APPLICATION_CREDENTIALS` to the path of a service-account JSON file.
    - Set `FIREBASE_SERVICE_ACCOUNT_JSON` to the service-account JSON contents.
    - Use Application Default Credentials in an environment where they are available.
 
-   Keep the service-account credentials, `ADMIN_PASSWORD`, and `SESSION_SECRET` secret. Do not prefix them with `NEXT_PUBLIC_` or commit them to the repository.
+   Keep the service-account credentials and `SESSION_SECRET` secret. Do not prefix them with `NEXT_PUBLIC_` or commit them to the repository.
 
 4. Deploy the Firestore rules to your Firebase project:
 
@@ -81,7 +81,7 @@ The instructor account area at `/instructor` uses a separate Firebase email/pass
    npm run dev
    ```
 
-   Open [http://localhost:3000](http://localhost:3000), or visit [the instructor dashboard](http://localhost:3000/admin) to create a board.
+   Open [http://localhost:3000](http://localhost:3000), or visit [instructor accounts](http://localhost:3000/instructor) to create an account and board.
 
 ### Environment variables
 
@@ -91,21 +91,23 @@ The instructor account area at `/instructor` uses a separate Firebase email/pass
 | `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Authentication domain |
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase project ID |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase web app ID |
-| `ADMIN_PASSWORD` | Password for the instructor dashboard |
-| `SESSION_SECRET` | Secret used to sign instructor sessions |
+| `SESSION_SECRET` | Secret used to protect password-attempt identifiers |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Optional service-account JSON for the server |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Optional path to a service-account JSON file |
 
 ## Using a board
 
-1. Sign in at `/admin` with the instructor password.
-2. Create a board with a name and a shared password of at least eight characters.
+1. Create an account or sign in at `/instructor`, then verify your email.
+2. Create a board with a name and a participant password of at least eight characters.
 3. Use **Share** to copy the board link or download its QR code, and share the password separately with participants.
 4. Participants open the link, unlock the board, and can ask, vote, and reply. Instructors can open **Manage board** to moderate questions and change their status.
 
 Questions and replies support visual formatting, including bold, italics, lists, and tables. Their Markdown formatting is retained in Markdown exports. The 2,000-character limit and editor counter measure the stored Markdown, including formatting characters.
 
 Changing a board password requires participants to unlock it again. Deleting a board permanently removes its questions and replies; export it first if you need a copy.
+If deletion is interrupted, the personal dashboard shows the board as unavailable and offers **Finish deletion** to retry. Instructor-to-instructor invitations are not yet available.
+
+Boards created under the former shared instructor login are preserved in Firestore but cannot be accessed or managed until assigned to a team. There is no migration tool yet. Export or plan an ownership migration before deploying this change if those boards are still needed; no board is automatically claimed.
 
 ## Privacy and deployment
 
@@ -123,4 +125,4 @@ Deploy the app and `firestore.rules` together, especially when updating board ac
 | `npm run build` | Create a production build |
 | `npm start` | Run the production build |
 
-The repository also contains Firestore rules and board API integration scripts in `scripts/`; they require a configured Firebase emulator environment. The default `npm test` script is a placeholder.
+The repository also contains Firestore rules and instructor board API integration scripts in `scripts/`; see [the emulator instructions](docs/instructor-accounts.md). The default `npm test` script is a placeholder.

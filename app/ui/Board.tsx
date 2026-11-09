@@ -98,7 +98,7 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
   const [replyError, setReplyError] = useState('');
   const [unlocked, setUnlocked] = useState(false);
   const [adminAuthorized, setAdminAuthorized] = useState(!admin);
-  const [dashboardUrl, setDashboardUrl] = useState('/admin');
+  const dashboardUrl = '/instructor';
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [boardName, setBoardName] = useState('The question board');
   const [password, setPassword] = useState('');
@@ -252,7 +252,6 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
       setBoardName(data.name);
       setUnlocked(true);
       if (instructor) setAdminAuthorized(true);
-      if (instructorToken) setDashboardUrl('/instructor');
       setPassword('');
       setError('');
     } else setError(r.status === 429 ? 'Too many attempts. Try again in 10 minutes.' : r.status === 401 ? (instructor ? 'Please sign in to the instructor dashboard first.' : 'Incorrect board link or password.') : 'Could not open the board. Please try again.');

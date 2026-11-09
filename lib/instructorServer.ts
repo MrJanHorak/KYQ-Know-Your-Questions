@@ -1,7 +1,7 @@
 import 'server-only';
 import { getAuth, type DecodedIdToken } from 'firebase-admin/auth';
 import { NextRequest } from 'next/server';
-import { adminApp, adminDb, isAdmin } from './server';
+import { adminApp, adminDb } from './server';
 
 export async function instructorIdentity(req: NextRequest): Promise<DecodedIdToken | null> {
   const match = /^Bearer (.+)$/.exec(req.headers.get('authorization') || '');
@@ -18,13 +18,12 @@ export async function instructorIdentity(req: NextRequest): Promise<DecodedIdTok
   }
 }
 
-// Existing shared-password access is limited to boards without a team.
 export async function canManageBoard(req: NextRequest, boardId: string): Promise<boolean> {
   const db = adminDb();
   const board = await db.collection('boards').doc(boardId).get();
   if (!board.exists) return false;
   const teamId = board.get('teamId');
-  if (typeof teamId !== 'string') return isAdmin(req);
+  if (typeof teamId !== 'string') return false;
   const user = await instructorIdentity(req);
   if (!user) return false;
   const [team, membership] = await Promise.all([

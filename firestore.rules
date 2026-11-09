@@ -5,6 +5,7 @@ service cloud.firestore {
       function hasAccess() {
         return request.auth != null
           && request.auth.token.boardId == boardId
+          && get(/databases/$(database)/documents/boards/$(boardId)).data.get('teamId', null) is string
           && request.auth.token.get('accessVersion', 0) == get(/databases/$(database)/documents/boards/$(boardId)).data.get('accessVersion', 0);
       }
       allow read: if hasAccess();
