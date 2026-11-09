@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Code2 } from 'lucide-react';
 import { createUserWithEmailAndPassword, onAuthStateChanged, reload, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, User } from 'firebase/auth';
 import { instructorAuth } from '../../lib/instructorFirebase';
@@ -40,20 +40,40 @@ export default function InstructorAccount() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [authError, setAuthError] = useState('');
-  const [teamReady, setTeamReady] = useState(false);
+  const [accountState, setAccountState] = useState<'checking'|'unverified'|'setup-error'|'ready'>('checking');
+  const checkVersion = useRef(0);
+  const teamReady = accountState === 'ready';
+
+  async function checkAccount(current: User, version: number) {
+    try {
+      await reload(current);
+      if (version !== checkVersion.current) return;
+      if (!current.emailVerified) { setAccountState('unverified'); return; }
+      const token = await current.getIdToken(true);
+      const response = await fetch('/api/instructor/account', {method:'POST', headers:{Authorization:`Bearer ${token}`}});
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'Could not set up your account. Please try again.');
+      }
+      if (version === checkVersion.current) setAccountState('ready');
+    } catch (error) {
+      if (version !== checkVersion.current) return;
+      setMessage(error instanceof Error ? error.message : 'Could not check your account. Please try again.');
+      setAccountState('setup-error');
+    }
+  }
 
   useEffect(() => {
     if (!instructorAuth) { setReady(true); return; }
-    return onAuthStateChanged(instructorAuth, current => { setUser(current); setTeamReady(false); setReady(true); });
+    const unsubscribe = onAuthStateChanged(instructorAuth, current => {
+      const version = ++checkVersion.current;
+      setUser(current);
+      setAccountState('checking');
+      setReady(true);
+      if (current) void checkAccount(current, version);
+    });
+    return () => { checkVersion.current++; unsubscribe(); };
   }, []);
-
-  async function setup(current: User) {
-    const token = await current.getIdToken(true);
-    const response = await fetch('/api/instructor/account', {method:'POST', headers:{Authorization:`Bearer ${token}`}});
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Account setup failed.');
-    setTeamReady(true);
-  }
   async function submit(event: React.FormEvent) {
     event.preventDefault(); if (!instructorAuth) return;
     if (create && password !== confirmPassword) { setMessage(''); setAuthError(''); setPasswordMismatch(true); return; }
@@ -67,37 +87,30 @@ export default function InstructorAccount() {
         try { await sendEmailVerification(credential.user); setMessage('Check your email for a verification link, then return here.'); }
         catch { setMessage('Your account was created, but the verification email could not be sent. Use Resend verification email below.'); }
       } else {
-        const credential = await signInWithEmailAndPassword(instructorAuth, email.trim(), password);
+        await signInWithEmailAndPassword(instructorAuth, email.trim(), password);
         setPassword('');
-        if (!credential.user.emailVerified) setMessage('Verify your email before continuing.');
       }
     } catch (error) { setAuthError(authErrorMessage(error, create)); }
     finally { setBusy(false); }
   }
   async function refresh() {
-    if (!user) return; setBusy(true); setMessage('');
-    try { await reload(user); if (!user.emailVerified) { setMessage('Your email is not verified yet.'); return; } await setup(user); }
-    catch (error) { setMessage(error instanceof Error ? error.message : 'Could not set up your account. Please try again.'); }
-    finally { setBusy(false); }
+    if (!user) return;
+    setMessage('');
+    setAccountState('checking');
+    await checkAccount(user, ++checkVersion.current);
   }
-  useEffect(() => {
-    if (!user?.emailVerified || teamReady) return;
-    let active = true;
-    (async () => { try { const token = await user.getIdToken(true); const response = await fetch('/api/instructor/account', {method:'POST', headers:{Authorization:`Bearer ${token}`}}); if (!response.ok) { const result = await response.json(); throw new Error(result.error || 'Could not set up your account. Please try again.'); } if (active) setTeamReady(true); } catch (error) { if (active) setMessage(error instanceof Error ? error.message : 'Could not set up your account. Please try again.'); } })();
-    return () => { active = false; };
-  }, [user, teamReady]);
 
   return <main className='login-wrap'><div className={`login card${teamReady ? ' instructor-dashboard' : ''}`}>
     <div className='brand-mark'><Code2 size={21}/></div><span className='eyebrow'>INSTRUCTOR ACCOUNT</span>
     {teamReady && <div className='dashboard-brand-art' aria-hidden='true'><span className='dashboard-brand-sparkle'>✳</span><div className='dashboard-brand-card'><span className='dashboard-brand-label'>ASK MORE</span><span className='dashboard-brand-question'>?</span><span className='dashboard-brand-arrow'>↗</span></div></div>}
     {!ready ? <p>Loading your account…</p> : !instructorAuth ? <p>Firebase is not configured.</p> : user ? <>
-      <h1>{teamReady ? 'Your account is ready.' : user.emailVerified ? 'Set up your account.' : 'Verify your email.'}</h1>
+      <h1>{teamReady ? 'Your account is ready.' : accountState === 'checking' ? 'Checking your account…' : accountState === 'unverified' ? 'Verify your email.' : 'Check your account.'}</h1>
       <p>Signed in as {user.email}.</p>
       {teamReady ? <><p>Your personal team is ready. Invitations are still being built.</p><InstructorBoards user={user}/></> : null}
       <div className={teamReady ? 'account-actions dashboard-actions' : 'account-actions'}>
-      {!teamReady && <>
-        <button className='primary' disabled={busy} onClick={refresh}>{user.emailVerified ? 'Retry account setup' : 'I have verified my email'}</button>
-        {!user.emailVerified && <button className='outline' disabled={busy} onClick={async () => { setBusy(true); try { await sendEmailVerification(user); setMessage('Verification email sent.'); } catch { setMessage('Could not send the verification email. Please try again later.'); } finally { setBusy(false); } }}>Resend verification email</button>}
+      {!teamReady && accountState !== 'checking' && <>
+        <button className='primary' disabled={busy} onClick={refresh}>{accountState === 'unverified' ? 'I have verified my email' : 'Retry account check'}</button>
+        {accountState === 'unverified' && <button className='outline' disabled={busy} onClick={async () => { setBusy(true); try { await sendEmailVerification(user); setMessage('Verification email sent.'); } catch { setMessage('Could not send the verification email. Please try again later.'); } finally { setBusy(false); } }}>Resend verification email</button>}
       </>}
       <button className='outline' disabled={busy} onClick={() => { setMessage(''); if (instructorAuth) void signOut(instructorAuth); }}>Sign out</button>
       </div>
