@@ -31,12 +31,13 @@ export async function boardRole(req: NextRequest, boardId: string): Promise<Boar
   if (typeof teamId !== 'string') return null;
   const user = await instructorIdentity(req);
   if (!user) return null;
-  const [team, membership] = await Promise.all([
+  const [team, membership, owner] = await Promise.all([
     db.collection('teams').doc(teamId).get(),
     board.ref.collection('admins').doc(user.uid).get(),
+    db.collection('teams').doc(teamId).collection('members').doc(user.uid).get(),
   ]);
   if (!team.exists) return null;
-  if (team.get('ownerUid') === user.uid) return 'owner';
+  if (owner.get('role') === 'owner') return 'owner';
   const role = membership.get('role');
   return isBoardRole(role) ? role : null;
 }

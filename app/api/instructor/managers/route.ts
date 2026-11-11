@@ -64,8 +64,9 @@ export async function PUT(req:NextRequest) {
       if (!data || data.usedAt || data.revokedAt || data.expiresAt <= Date.now() || data.email !== user.email!.toLowerCase() || !isBoardRole(data.role) || !validId(data.boardId)) return null;
       const boardRef=db.collection('boards').doc(data.boardId), board=await tx.get(boardRef);
       if (!board.exists || board.get('deleting') || typeof board.get('teamId') !== 'string') return null;
-      const team=await tx.get(db.collection('teams').doc(board.get('teamId')));
-      if (!team.exists || team.get('ownerUid') === user.uid) return null;
+      const teamRef=db.collection('teams').doc(board.get('teamId'));
+      const [team, owner]=await Promise.all([tx.get(teamRef),tx.get(teamRef.collection('members').doc(user.uid))]);
+      if (!team.exists || owner.get('role') === 'owner') return null;
       tx.set(boardRef.collection('admins').doc(user.uid),{role:data.role,email:user.email!.toLowerCase(),createdAt:FieldValue.serverTimestamp()});
       tx.set(db.collection('instructors').doc(user.uid).collection('boardMemberships').doc(data.boardId),{role:data.role});
       tx.update(ref,{usedAt:FieldValue.serverTimestamp()});

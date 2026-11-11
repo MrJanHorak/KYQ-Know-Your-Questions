@@ -34,7 +34,7 @@ Questions and replies support formatting such as bold, italics, lists, and table
 
 KYQ is a Next.js App Router application built with React, TypeScript, and Tailwind CSS. Firebase Authentication provides browser identities and board-specific access; Cloud Firestore stores boards and questions and delivers live updates. Next.js route handlers use the Firebase Admin SDK for server-side operations such as board access, management, and exports. Firestore security rules enforce board access for client operations.
 
-The instructor account area at `/instructor` uses a separate Firebase email/password identity and creates a personal team after email verification. Owners can invite managers to individual boards with different permission levels. See [instructor accounts and roles](docs/instructor-accounts.md).
+The instructor account area at `/instructor` uses a separate Firebase email/password identity and creates a personal team after email verification. Team owners can invite additional owners, and owners and board admins can invite managers to individual boards with different permission levels. See [instructor accounts and roles](docs/instructor-accounts.md).
 
 | Location | Purpose |
 | --- | --- |
@@ -108,6 +108,8 @@ Changing a board password requires participants to unlock it again. Deleting a b
 If deletion is interrupted, the dashboard shows the board as unavailable and offers authorized admins **Finish deletion** to retry.
 
 Owners and board admins can open **Managers** to create a board-specific invitation for a verified email address. Copy and share the one-time link with that person; it expires after seven days and can be revoked. Responders can reply and change question status; moderators can also delete questions and replies; managers can also change the participant password and export; board admins can also edit questions, manage access, and delete the board. Each role includes the preceding roles. The owner retains access and creates boards for the team.
+
+Use **Team owners** to invite a trusted co-owner, review ownership activity, revoke invitations, or remove an owner. Share the one-time invitation link directly; the recipient must sign in with its verified email and accept within seven days. All owners can manage every team board and invite or remove owners. A team must retain at least one owner; two are recommended for continuity. Ownership changes require password confirmation. Email notifications and recovery when all owners lose access are not yet available.
 
 Boards created under the former shared instructor login remain unassigned and inaccessible. Migrating them is outside the current scope.
 

@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       const user = await tx.get(userRef);
       if (user.exists) return user.get('personalTeamId') as string;
       tx.create(teamRef, {ownerUid:identity.uid, createdAt:FieldValue.serverTimestamp()});
-      tx.create(teamRef.collection('members').doc(identity.uid), {role:'owner', createdAt:FieldValue.serverTimestamp()});
+      tx.create(teamRef.collection('members').doc(identity.uid), {role:'owner', email:identity.email!.toLowerCase(), createdAt:FieldValue.serverTimestamp()});
       tx.create(userRef, {personalTeamId:teamRef.id, createdAt:FieldValue.serverTimestamp()});
       return teamRef.id;
     });

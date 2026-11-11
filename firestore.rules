@@ -9,7 +9,7 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/boards/$(boardId)).data.get('deleting', false) == false
           && (request.auth.token.get('managerUid', null) == null
             || (exists(/databases/$(database)/documents/teams/$(get(/databases/$(database)/documents/boards/$(boardId)).data.teamId))
-              && (get(/databases/$(database)/documents/teams/$(get(/databases/$(database)/documents/boards/$(boardId)).data.teamId)).data.get('ownerUid', '') == request.auth.token.managerUid
+              && (get(/databases/$(database)/documents/teams/$(get(/databases/$(database)/documents/boards/$(boardId)).data.teamId)/members/$(request.auth.token.managerUid)).data.get('role', '') == 'owner'
                 || get(/databases/$(database)/documents/boards/$(boardId)/admins/$(request.auth.token.managerUid)).data.get('role', '') in ['responder', 'moderator', 'manager', 'admin'])))
           && request.auth.token.get('accessVersion', 0) == get(/databases/$(database)/documents/boards/$(boardId)).data.get('accessVersion', 0);
       }

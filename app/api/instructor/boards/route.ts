@@ -9,10 +9,10 @@ export async function GET(req: NextRequest) {
   try {
     const db = adminDb();
     const instructor = await db.collection('instructors').doc(user.uid).get();
-    const teamId = instructor.get('personalTeamId');
-    if (typeof teamId !== 'string') return NextResponse.json({error:'Set up your account first.'}, {status:403});
+    const teamId = req.nextUrl.searchParams.get('teamId') || instructor.get('personalTeamId');
+    if (!validId(teamId)) return NextResponse.json({error:'Set up your account first.'}, {status:403});
     const team = await db.collection('teams').doc(teamId).get();
-    if (!team.exists || team.get('ownerUid') !== user.uid) return NextResponse.json({error:'Team unavailable.'}, {status:403});
+    if (!team.exists || (await team.ref.collection('members').doc(user.uid).get()).get('role') !== 'owner') return NextResponse.json({error:'Team unavailable.'}, {status:403});
     const cursor = req.nextUrl.searchParams.get('after');
     if (cursor && !validId(cursor)) return NextResponse.json({error:'Invalid page.'}, {status:400});
     let query = db.collection('boards').where('teamId', '==', teamId).orderBy(FieldPath.documentId()).limit(51);
@@ -27,14 +27,14 @@ export async function POST(req: NextRequest) {
   const user = await instructorIdentity(req);
   if (!user) return NextResponse.json({error:'Sign in required.'}, {status:401});
   try {
-    const {name, password} = await req.json();
+    const {name, password, teamId: requestedTeamId} = await req.json();
     if (typeof name !== 'string' || !name.trim() || name.trim().length > 100 || typeof password !== 'string' || password.length < 8 || password.length > 128) return NextResponse.json({error:'Use a name and a password of 8–128 characters.'}, {status:400});
     const db = adminDb();
     const instructor = await db.collection('instructors').doc(user.uid).get();
-    const teamId = instructor.get('personalTeamId');
-    if (typeof teamId !== 'string') return NextResponse.json({error:'Set up your account first.'}, {status:403});
+    const teamId = requestedTeamId || instructor.get('personalTeamId');
+    if (!validId(teamId)) return NextResponse.json({error:'Set up your account first.'}, {status:403});
     const team = await db.collection('teams').doc(teamId).get();
-    if (!team.exists || team.get('ownerUid') !== user.uid) return NextResponse.json({error:'Team unavailable.'}, {status:403});
+    if (!team.exists || (await team.ref.collection('members').doc(user.uid).get()).get('role') !== 'owner') return NextResponse.json({error:'Team unavailable.'}, {status:403});
     const board = await db.collection('boards').add({teamId, name:name.trim(), passwordHash:hashPassword(password), accessVersion:0, createdAt:FieldValue.serverTimestamp()});
     return NextResponse.json({id:board.id, name:name.trim()});
   } catch { return NextResponse.json({error:'Could not create board.'}, {status:500}); }

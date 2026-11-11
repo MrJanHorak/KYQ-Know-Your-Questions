@@ -5,6 +5,7 @@ import { ArrowUpRight, Download, Settings2, Share2 } from 'lucide-react';
 import Dialog from './Dialog';
 import ShareBoard from './ShareBoard';
 import BoardManagers from './BoardManagers';
+import TeamOwners, { confirmOwnershipIdentity } from './TeamOwners';
 
 type Board = {id:string; name:string; deleting?:boolean};
 type SharedBoard = Board & {role:'responder'|'moderator'|'manager'|'admin'};
@@ -12,6 +13,10 @@ export default function InstructorBoards({user}: {user:User}) {
   const [boards, setBoards] = useState<Board[]>([]);
   const [sharedBoards, setSharedBoards] = useState<SharedBoard[]>([]);
   const [invitation, setInvitation] = useState('');
+  const [ownerInvitation,setOwnerInvitation]=useState('');
+  const [teams,setTeams]=useState<{id:string;personal:boolean}[]>([]);
+  const [teamId,setTeamId]=useState('');
+  const [ownersOpen,setOwnersOpen]=useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -32,22 +37,27 @@ export default function InstructorBoards({user}: {user:User}) {
     return fetch(url, {...options, headers});
   }, [user]);
   const load = useCallback(async (after?:string) => {
-    const response = await request(`/api/instructor/boards${after ? `?after=${encodeURIComponent(after)}` : ''}`, {cache:'no-store'});
+    if (!teamId) return;
+    const params=new URLSearchParams({teamId}); if(after) params.set('after',after);
+    const response = await request(`/api/instructor/boards?${params}`, {cache:'no-store'});
     if (!response.ok) throw new Error();
     const result = await response.json();
     setBoards(current => after ? [...current, ...result.boards] : result.boards);
     setNextCursor(result.nextCursor);
-  }, [request]);
+  }, [request,teamId]);
+  const loadTeams=useCallback(async (preferred?:string)=>{const response=await request('/api/instructor/owners',{cache:'no-store'});if(!response.ok) throw new Error('Could not load teams.');const result=await response.json();setTeams(result.teams);setTeamId(current=>result.teams.some((team:{id:string})=>team.id===(preferred||current)) ? (preferred||current) : (result.teams[0]?.id || ''));},[request]);
+  useEffect(()=>{void loadTeams().catch(()=>setMessage('Could not load teams.'));},[loadTeams]);
   const loadShared = useCallback(async () => { const response=await request('/api/instructor/shared-boards',{cache:'no-store'}); if (!response.ok) throw new Error(); setSharedBoards((await response.json()).boards); },[request]);
   useEffect(() => { void load().catch(() => setMessage('Could not load your boards.')); }, [load]);
-  useEffect(() => { void loadShared().catch(() => setMessage('Could not load shared boards.')); setInvitation(new URLSearchParams(window.location.search).get('invite') || ''); }, [loadShared]);
+  useEffect(() => { void loadShared().catch(() => setMessage('Could not load shared boards.')); const params=new URLSearchParams(window.location.search); setInvitation(params.get('invite') || '');setOwnerInvitation(params.get('ownerInvite') || ''); }, [loadShared]);
+  async function acceptOwnerInvitation(){setBusy(true);setMessage('');try{await confirmOwnershipIdentity(user);const response=await request('/api/instructor/owners',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:ownerInvitation})});const result=await response.json();if(!response.ok)throw new Error(result.error);setOwnerInvitation('');const url=new URL(location.href);url.searchParams.delete('ownerInvite');history.replaceState(null,'',url);await loadTeams(result.teamId);setMessage('Team ownership accepted.');}catch(error){setMessage(error instanceof Error?error.message:'Could not accept invitation.');}finally{setBusy(false);}}
   async function acceptInvitation() { setBusy(true); setMessage(''); try { const response=await request('/api/instructor/managers',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:invitation})}); const result=await response.json(); if (!response.ok) throw new Error(result.error); setInvitation(''); const url=new URL(window.location.href); url.searchParams.delete('invite'); window.history.replaceState(null,'',url); await loadShared(); setMessage('Invitation accepted.'); } catch(error) {setMessage(error instanceof Error ? error.message : 'Could not accept invitation.');} finally {setBusy(false);} }
   async function create(event:React.FormEvent) {
     event.preventDefault();
     if (password !== confirmPassword) { setCreateMismatch(true); return; }
     setCreateMismatch(false); setBusy(true); setMessage('');
     try {
-      const response = await request('/api/instructor/boards', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,password})});
+      const response = await request('/api/instructor/boards', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,password,teamId})});
       const result = await response.json();
       if (!response.ok) { setMessage(result.error || 'Could not create the board.'); return; }
       setName(''); setPassword(''); setConfirmPassword(''); await load();
@@ -81,6 +91,9 @@ export default function InstructorBoards({user}: {user:User}) {
   }
   return <section className='instructor-boards'>
     {message && <p role='status'>{message}</p>}
+    {ownerInvitation && <div><p>You have an invitation to become a team owner. Owners can manage all team boards and ownership.</p><button className='primary' disabled={busy} onClick={()=>void acceptOwnerInvitation()}>Accept team ownership</button></div>}
+    {teams.length>0 && <div><label>TEAM<select value={teamId} onChange={e=>{setBoards([]);setTeamId(e.target.value);}}>{teams.map(team=><option key={team.id} value={team.id}>{team.personal?'Your personal team':`Shared team ${team.id}`}</option>)}</select></label><button className='outline' onClick={()=>setOwnersOpen(true)}>Team owners</button></div>}
+    {ownersOpen && teamId && <Dialog title='Team owners' onClose={()=>setOwnersOpen(false)}><TeamOwners teamId={teamId} user={user} onRemoved={()=>{setOwnersOpen(false);setBoards([]);void loadTeams().catch(()=>setMessage('Could not load teams.'));}}/></Dialog>}
     {invitation && <div><p>You have a board invitation. Sign in with the email address it was sent to.</p><button className='primary' disabled={busy} onClick={()=>void acceptInvitation()}>Accept invitation</button></div>}
     {dialog?.type === 'managers' && <Dialog title='Board managers' onClose={()=>setDialog(null)}><BoardManagers boardId={dialog.board.id} user={user}/></Dialog>}
     {dialog?.type === 'share' && <ShareBoard board={dialog.board} onClose={()=>setDialog(null)}/>}
@@ -119,7 +132,7 @@ export default function InstructorBoards({user}: {user:User}) {
       <label>PARTICIPANT PASSWORD<input type='password' autoComplete='new-password' minLength={8} maxLength={128} required value={password} onChange={e=>{setPassword(e.target.value);setCreateMismatch(false);}} placeholder='At least 8 characters'/></label>
       <label>CONFIRM PASSWORD<input type='password' autoComplete='new-password' required value={confirmPassword} aria-invalid={createMismatch} aria-describedby={createMismatch ? 'create-board-password-error' : undefined} onChange={e=>{setConfirmPassword(e.target.value);setCreateMismatch(false);}}/></label>
       {createMismatch && <p id='create-board-password-error' className='board-password-error' role='alert'>Passwords do not match.</p>}
-      <button className='primary' disabled={busy}>Create board</button>
+      <button className='primary' disabled={busy || !teamId}>Create board</button>
     </form>
     </div>
   </section>;

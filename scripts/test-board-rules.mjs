@@ -11,6 +11,12 @@ assert.equal((await get('boards/board-a/questions/q1')).status,403,'Unauthentica
 assert.equal((await get('boards/board-a/questions/q1',jwt())).status,403,'Anonymous access should fail');
 assert.equal((await get('boards/board-a/questions/q1',jwt({boardId:'board-b'}))).status,403,'Another board must not be readable');
 assert.equal((await get('boards/board-a/questions/q1',jwt({boardId:'board-a'}))).status,200,'Correct board should be readable');
+await fetch(`${root}/teams/team-a`,{method:'PATCH',headers:ownerHeaders,body:JSON.stringify({fields:{name:{stringValue:'Test team'}}})});
+await fetch(`${root}/teams/team-a/members/co-owner`,{method:'PATCH',headers:ownerHeaders,body:JSON.stringify({fields:{role:{stringValue:'owner'}}})});
+const ownerToken=jwt({boardId:'board-a',managerUid:'co-owner'});
+assert.equal((await get('boards/board-a/questions/q1',ownerToken)).status,200,'A team owner can use an instructor session');
+await fetch(`${root}/teams/team-a/members/co-owner`,{method:'DELETE',headers:ownerHeaders});
+assert.equal((await get('boards/board-a/questions/q1',ownerToken)).status,403,'Removing an owner revokes their existing instructor session');
 const changed=await fetch(`${root}/boards/board-a`,{method:'PATCH',headers:ownerHeaders,body:JSON.stringify({fields:{teamId:{stringValue:'team-a'},accessVersion:{integerValue:'1'}}})});
 assert(changed.ok, 'Could not update board access version');
 assert.equal((await get('boards/board-a/questions/q1',jwt({boardId:'board-a'}))).status,403,'Old board token must be rejected after a password change');

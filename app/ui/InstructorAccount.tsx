@@ -106,7 +106,7 @@ export default function InstructorAccount() {
     {!ready ? <p>Loading your account…</p> : !instructorAuth ? <p>Firebase is not configured.</p> : user ? <>
       <h1>{teamReady ? 'Your account is ready.' : accountState === 'checking' ? 'Checking your account…' : accountState === 'unverified' ? 'Verify your email.' : 'Check your account.'}</h1>
       <p>Signed in as {user.email}.</p>
-      {teamReady ? <><p>Your personal team is ready.</p><InstructorBoards user={user}/></> : null}
+      {teamReady ? <InstructorBoards user={user}/> : null}
       <div className={teamReady ? 'account-actions dashboard-actions' : 'account-actions'}>
       {!teamReady && accountState !== 'checking' && <>
         <button className='primary' disabled={busy} onClick={refresh}>{accountState === 'unverified' ? 'I have verified my email' : 'Retry account check'}</button>
