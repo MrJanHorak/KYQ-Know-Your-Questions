@@ -22,6 +22,8 @@ async function changeReply(req: NextRequest, edit: boolean) {
       const [board, question] = await Promise.all([tx.get(boardRef), tx.get(questionRef)]);
       if (!board.exists || typeof board.data()?.teamId !== 'string' || board.data()?.deleting || (board.data()?.accessVersion ?? 0) !== (user.accessVersion ?? 0)) return 403;
       if (typeof user.managerUid === 'string') {
+        const security=await tx.get(db.collection('_settings').doc('security'));
+        if (security.get('requireInstructorMfa') === true && user.managerMfa !== true) return 403;
         const teamRef = db.collection('teams').doc(board.data()!.teamId);
         const [team, owner, member] = await Promise.all([tx.get(teamRef), tx.get(teamRef.collection('members').doc(user.managerUid)), tx.get(boardRef.collection('admins').doc(user.managerUid))]);
         if (!team.exists || (owner.get('role') !== 'owner' && !['responder','moderator','manager','admin'].includes(member.get('role')))) return 403;

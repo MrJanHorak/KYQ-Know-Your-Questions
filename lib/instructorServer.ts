@@ -3,12 +3,23 @@ import { getAuth, type DecodedIdToken } from 'firebase-admin/auth';
 import { NextRequest } from 'next/server';
 import { adminApp, adminDb } from './server';
 
-export async function instructorIdentity(req: NextRequest): Promise<DecodedIdToken | null> {
+export async function instructorMfaRequired(): Promise<boolean> {
+  const config = await adminDb().collection('_settings').doc('security').get();
+  return config.get('requireInstructorMfa') === true;
+}
+
+export function hasSecondFactor(identity: DecodedIdToken): boolean {
+  return typeof identity.firebase.sign_in_second_factor === 'string' && identity.firebase.sign_in_second_factor.length > 0;
+}
+
+export async function instructorIdentity(req: NextRequest, options: {allowMfaSetup?: boolean} = {}): Promise<DecodedIdToken | null> {
   const match = /^Bearer (.+)$/.exec(req.headers.get('authorization') || '');
   if (!match) return null;
   try {
     const user = await getAuth(adminApp()).verifyIdToken(match[1], true);
-    return user.email && user.email_verified === true && user.firebase.sign_in_provider !== 'anonymous' ? user : null;
+    if (!user.email || user.email_verified !== true || user.firebase.sign_in_provider === 'anonymous') return null;
+    if (!options.allowMfaSetup && await instructorMfaRequired() && !hasSecondFactor(user)) return null;
+    return user;
   } catch (error) {
     const code = typeof error === 'object' && error !== null && 'code' in error ? (error as {code?: unknown}).code : undefined;
     if (typeof code === 'string' && ['auth/argument-error', 'auth/id-token-expired', 'auth/id-token-revoked', 'auth/invalid-id-token', 'auth/user-disabled', 'auth/user-not-found'].includes(code)) return null;

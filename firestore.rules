@@ -9,6 +9,9 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/boards/$(boardId)).data.get('deleting', false) == false
           && (request.auth.token.get('managerUid', null) == null
             || (exists(/databases/$(database)/documents/teams/$(get(/databases/$(database)/documents/boards/$(boardId)).data.teamId))
+              && (!exists(/databases/$(database)/documents/_settings/security)
+                || get(/databases/$(database)/documents/_settings/security).data.get('requireInstructorMfa', false) != true
+                || request.auth.token.get('managerMfa', false) == true)
               && (get(/databases/$(database)/documents/teams/$(get(/databases/$(database)/documents/boards/$(boardId)).data.teamId)/members/$(request.auth.token.managerUid)).data.get('role', '') == 'owner'
                 || get(/databases/$(database)/documents/boards/$(boardId)/admins/$(request.auth.token.managerUid)).data.get('role', '') in ['responder', 'moderator', 'manager', 'admin'])))
           && request.auth.token.get('accessVersion', 0) == get(/databases/$(database)/documents/boards/$(boardId)).data.get('accessVersion', 0);

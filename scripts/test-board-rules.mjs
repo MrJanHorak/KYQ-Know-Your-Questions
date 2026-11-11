@@ -15,6 +15,11 @@ await fetch(`${root}/teams/team-a`,{method:'PATCH',headers:ownerHeaders,body:JSO
 await fetch(`${root}/teams/team-a/members/co-owner`,{method:'PATCH',headers:ownerHeaders,body:JSON.stringify({fields:{role:{stringValue:'owner'}}})});
 const ownerToken=jwt({boardId:'board-a',managerUid:'co-owner'});
 assert.equal((await get('boards/board-a/questions/q1',ownerToken)).status,200,'A team owner can use an instructor session');
+await fetch(`${root}/_settings/security`,{method:'PATCH',headers:ownerHeaders,body:JSON.stringify({fields:{requireInstructorMfa:{booleanValue:true}}})});
+assert.equal((await get('boards/board-a/questions/q1',ownerToken)).status,403,'Existing instructor sessions without MFA are denied');
+assert.equal((await get('boards/board-a/questions/q1',jwt({boardId:'board-a',managerUid:'co-owner',managerMfa:true}))).status,200,'An instructor session with an MFA claim is allowed');
+assert.equal((await get('boards/board-a/questions/q1',jwt({boardId:'board-a'}))).status,200,'Participants are unaffected by instructor MFA');
+await fetch(`${root}/_settings/security`,{method:'DELETE',headers:ownerHeaders});
 await fetch(`${root}/teams/team-a/members/co-owner`,{method:'DELETE',headers:ownerHeaders});
 assert.equal((await get('boards/board-a/questions/q1',ownerToken)).status,403,'Removing an owner revokes their existing instructor session');
 const changed=await fetch(`${root}/boards/board-a`,{method:'PATCH',headers:ownerHeaders,body:JSON.stringify({fields:{teamId:{stringValue:'team-a'},accessVersion:{integerValue:'1'}}})});

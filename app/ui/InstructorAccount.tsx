@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Code2 } from 'lucide-react';
-import { createUserWithEmailAndPassword, getMultiFactorResolver, onAuthStateChanged, reload, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, TotpMultiFactorGenerator, type MultiFactorError, type MultiFactorResolver, User } from 'firebase/auth';
+import { createUserWithEmailAndPassword, getMultiFactorResolver, multiFactor, onAuthStateChanged, reload, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, TotpMultiFactorGenerator, type MultiFactorError, type MultiFactorResolver, User } from 'firebase/auth';
 import { instructorAuth } from '../../lib/instructorFirebase';
 import InstructorBoards from './InstructorBoards';
 import AuthenticatorSetup from './AuthenticatorSetup';
@@ -44,6 +44,8 @@ export default function InstructorAccount() {
   const [resolver,setResolver]=useState<MultiFactorResolver|null>(null);
   const [factorUid,setFactorUid]=useState('');
   const [factorCode,setFactorCode]=useState('');
+  const [mfaRequired,setMfaRequired]=useState(false);
+  const [mfaSatisfied,setMfaSatisfied]=useState(false);
   const [accountState, setAccountState] = useState<'checking'|'unverified'|'setup-error'|'ready'>('checking');
   const checkVersion = useRef(0);
   const teamReady = accountState === 'ready';
@@ -59,6 +61,10 @@ export default function InstructorAccount() {
         const result = await response.json();
         throw new Error(result.error || 'Could not set up your account. Please try again.');
       }
+      const result=await response.json();
+      if (version !== checkVersion.current) return;
+      setMfaRequired(result.mfaRequired === true);
+      setMfaSatisfied(result.mfaSatisfied === true);
       if (version === checkVersion.current) setAccountState('ready');
     } catch (error) {
       if (version !== checkVersion.current) return;
@@ -72,6 +78,7 @@ export default function InstructorAccount() {
     const unsubscribe = onAuthStateChanged(instructorAuth, current => {
       const version = ++checkVersion.current;
       setUser(current);
+      setMfaRequired(false); setMfaSatisfied(false);
       setAccountState('checking');
       setReady(true);
       if (current) void checkAccount(current, version);
@@ -111,7 +118,7 @@ export default function InstructorAccount() {
     {!ready ? <p>Loading your account…</p> : !instructorAuth ? <p>Firebase is not configured.</p> : user ? <>
       <h1>{teamReady ? 'Your account is ready.' : accountState === 'checking' ? 'Checking your account…' : accountState === 'unverified' ? 'Verify your email.' : 'Check your account.'}</h1>
       <p>Signed in as {user.email}.</p>
-      {teamReady ? <><InstructorBoards user={user}/>{process.env.NEXT_PUBLIC_TOTP_MFA_ENABLED === 'true' && <AuthenticatorSetup user={user}/>}</> : null}
+      {teamReady ? <>{mfaRequired && !mfaSatisfied ? <div role='status'><p>Two-step verification is required before managing teams or boards.</p>{multiFactor(user).enrolledFactors.length > 0 ? <p>Sign out and sign in again with your authenticator code to continue.</p> : process.env.NEXT_PUBLIC_TOTP_MFA_ENABLED !== 'true' ? <p>Authenticator setup is unavailable. Contact the site administrator.</p> : <p>Set up an authenticator below, then sign out and sign in again.</p>}</div> : <InstructorBoards user={user}/>} {process.env.NEXT_PUBLIC_TOTP_MFA_ENABLED === 'true' && <AuthenticatorSetup user={user}/>}</> : null}
       <div className={teamReady ? 'account-actions dashboard-actions' : 'account-actions'}>
       {!teamReady && accountState !== 'checking' && <>
         <button className='primary' disabled={busy} onClick={refresh}>{accountState === 'unverified' ? 'I have verified my email' : 'Retry account check'}</button>

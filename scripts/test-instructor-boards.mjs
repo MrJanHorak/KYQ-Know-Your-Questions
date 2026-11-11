@@ -88,6 +88,36 @@ try {
   assert.equal((await request(`/api/boards/export?boardId=${unowned.id}&format=json`, owner)).status,401);
   assert.equal((await request('/api/boards/access', null, 'POST', {boardId:unowned.id,password:'test-password',idToken:outsider})).status,401);
   await db.collection('boards').doc(board.id).collection('questions').doc('question').set({question:'Test question',authorName:'Tester',status:'unanswered',upvoteCount:0,createdAt:new Date(),replies:[{author:'Teacher',text:'Test response'}]});
+  // Enabling MFA blocks old instructor sessions and APIs without affecting participants.
+  const oldGrant=await (await request('/api/boards/access',owner,'POST',{boardId:board.id,password:'',idToken:owner,instructor:true})).json();
+  const oldExchange=await fetch(`http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=emulator-key`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:oldGrant.token,returnSecureToken:true})});
+  assert(oldExchange.ok); const oldBoardToken=(await oldExchange.json()).idToken;
+  const oldRead=()=>fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/v1/projects/${projectId}/databases/(default)/documents/boards/${board.id}/questions/question`,{headers:{authorization:`Bearer ${oldBoardToken}`}});
+  assert.equal((await oldRead()).status,200);
+  await db.collection('_settings').doc('security').set({requireInstructorMfa:true});
+  const setupState=await (await request('/api/instructor/account',owner,'POST')).json();
+  assert.equal(setupState.mfaRequired,true); assert.equal(setupState.mfaSatisfied,false);
+  assert.equal((await request('/api/instructor/boards',owner)).status,401);
+  assert.equal((await request('/api/instructor/owners',owner)).status,401);
+  assert.equal((await request('/api/instructor/recovery',recovery)).status,401);
+  // The Auth emulator accepts unsigned test JWTs; this simulates the verified
+  // second-factor claim, not a real TOTP enrollment or challenge.
+  const claims=JSON.parse(Buffer.from(owner.split('.')[1],'base64url').toString());
+  claims.firebase={...claims.firebase,sign_in_second_factor:'totp'};
+  const mockedMfaToken=`${Buffer.from(JSON.stringify({alg:'none',typ:'JWT'})).toString('base64url')}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.`;
+  assert.equal((await request('/api/instructor/boards',mockedMfaToken)).status,200,'An MFA-authenticated instructor is allowed');
+  const mfaGrantResponse=await request('/api/boards/access',mockedMfaToken,'POST',{boardId:board.id,password:'',idToken:mockedMfaToken,instructor:true});
+  assert.equal(mfaGrantResponse.status,200);
+  const mfaGrant=await mfaGrantResponse.json();
+  const mfaExchange=await fetch(`http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=emulator-key`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:mfaGrant.token,returnSecureToken:true})});
+  assert(mfaExchange.ok); const mfaBoardToken=(await mfaExchange.json()).idToken;
+  assert.equal((await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/v1/projects/${projectId}/databases/(default)/documents/boards/${board.id}/questions/question`,{headers:{authorization:`Bearer ${mfaBoardToken}`}})).status,200,'A board session issued after MFA is allowed');
+  assert.equal((await request('/api/boards/access',owner,'POST',{boardId:board.id,password:'',idToken:owner,instructor:true})).status,401);
+  assert.equal((await oldRead()).status,403,'Pre-existing instructor sessions must lose access');
+  assert.equal((await request('/api/replies',null,'POST',{boardId:board.id,questionId:'question',text:'blocked',author:'Owner',idToken:oldBoardToken})).status,403);
+  assert.equal((await request('/api/boards/access',null,'POST',{boardId:board.id,password:'test-password',idToken:outsider})).status,200,'Participant access must remain available');
+  await db.collection('_settings').doc('security').delete();
+  assert.equal((await request('/api/instructor/boards',owner)).status,200);
   // Board-admin membership is scoped to one board and checked on each request.
   const outsiderUid = `outsider${suffix}`;
   const adminRef = db.collection('boards').doc(board.id).collection('admins').doc(outsiderUid);
