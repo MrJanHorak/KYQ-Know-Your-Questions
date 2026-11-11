@@ -91,6 +91,7 @@ The instructor account area at `/instructor` uses a separate Firebase email/pass
 | `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Authentication domain |
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase project ID |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase web app ID |
+| `NEXT_PUBLIC_TOTP_MFA_ENABLED` | Set to `true` only after configuring and testing TOTP in Firebase Authentication with Identity Platform; shows optional authenticator enrollment |
 | `SESSION_SECRET` | Secret used to protect password-attempt identifiers |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Optional service-account JSON for the server |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Optional path to a service-account JSON file |

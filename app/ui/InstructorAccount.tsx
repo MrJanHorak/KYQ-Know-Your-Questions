@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Code2 } from 'lucide-react';
-import { createUserWithEmailAndPassword, onAuthStateChanged, reload, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, User } from 'firebase/auth';
+import { createUserWithEmailAndPassword, getMultiFactorResolver, onAuthStateChanged, reload, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, TotpMultiFactorGenerator, type MultiFactorError, type MultiFactorResolver, User } from 'firebase/auth';
 import { instructorAuth } from '../../lib/instructorFirebase';
 import InstructorBoards from './InstructorBoards';
+import AuthenticatorSetup from './AuthenticatorSetup';
 
 function authErrorMessage(error: unknown, creating: boolean) {
   const code = typeof error === 'object' && error !== null && 'code' in error ? (error as {code?: unknown}).code : undefined;
@@ -40,6 +41,9 @@ export default function InstructorAccount() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [authError, setAuthError] = useState('');
+  const [resolver,setResolver]=useState<MultiFactorResolver|null>(null);
+  const [factorUid,setFactorUid]=useState('');
+  const [factorCode,setFactorCode]=useState('');
   const [accountState, setAccountState] = useState<'checking'|'unverified'|'setup-error'|'ready'>('checking');
   const checkVersion = useRef(0);
   const teamReady = accountState === 'ready';
@@ -90,9 +94,10 @@ export default function InstructorAccount() {
         await signInWithEmailAndPassword(instructorAuth, email.trim(), password);
         setPassword('');
       }
-    } catch (error) { setAuthError(authErrorMessage(error, create)); }
+    } catch (error) { if(!create && (error as {code?:string}).code==='auth/multi-factor-auth-required'){const next=getMultiFactorResolver(instructorAuth,error as MultiFactorError);const factor=next.hints.find(hint=>hint.factorId===TotpMultiFactorGenerator.FACTOR_ID);if(factor){setResolver(next);setFactorUid(factor.uid);setPassword('');}else setAuthError('This account has no supported authenticator factor.');}else setAuthError(authErrorMessage(error, create)); }
     finally { setBusy(false); }
   }
+  async function verifyFactor(event:React.FormEvent){event.preventDefault();if(!resolver)return;setBusy(true);setAuthError('');try{await resolver.resolveSignIn(TotpMultiFactorGenerator.assertionForSignIn(factorUid,factorCode.trim()));setResolver(null);setFactorCode('');}catch{setAuthError('Could not verify that code. Check your authenticator and try again.');}finally{setBusy(false);}}
   async function refresh() {
     if (!user) return;
     setMessage('');
@@ -106,7 +111,7 @@ export default function InstructorAccount() {
     {!ready ? <p>Loading your account…</p> : !instructorAuth ? <p>Firebase is not configured.</p> : user ? <>
       <h1>{teamReady ? 'Your account is ready.' : accountState === 'checking' ? 'Checking your account…' : accountState === 'unverified' ? 'Verify your email.' : 'Check your account.'}</h1>
       <p>Signed in as {user.email}.</p>
-      {teamReady ? <InstructorBoards user={user}/> : null}
+      {teamReady ? <><InstructorBoards user={user}/>{process.env.NEXT_PUBLIC_TOTP_MFA_ENABLED === 'true' && <AuthenticatorSetup user={user}/>}</> : null}
       <div className={teamReady ? 'account-actions dashboard-actions' : 'account-actions'}>
       {!teamReady && accountState !== 'checking' && <>
         <button className='primary' disabled={busy} onClick={refresh}>{accountState === 'unverified' ? 'I have verified my email' : 'Retry account check'}</button>
@@ -114,7 +119,7 @@ export default function InstructorAccount() {
       </>}
       <button className='outline' disabled={busy} onClick={() => { setMessage(''); if (instructorAuth) void signOut(instructorAuth); }}>Sign out</button>
       </div>
-    </> : <form onSubmit={submit}>
+    </> : resolver ? <form onSubmit={verifyFactor}><h1>Verify your sign-in.</h1><p>Enter the code from your authenticator app.</p><label>AUTHENTICATOR CODE<input value={factorCode} onChange={event=>setFactorCode(event.target.value)} inputMode='numeric' autoComplete='one-time-code' required/></label>{authError&&<p className='account-error' role='alert'>{authError}</p>}<div className='account-actions'><button className='primary' disabled={busy}>Verify</button><button type='button' className='outline' disabled={busy} onClick={()=>{setResolver(null);setFactorCode('');setAuthError('');}}>Cancel</button></div></form> : <form onSubmit={submit}>
       <h1>{create ? 'Create your account.' : 'Welcome back.'}</h1>
       <p>Sign in or create an account to manage your boards.</p>
       <label>EMAIL<input type='email' autoComplete='email' value={email} onChange={e=>setEmail(e.target.value)} required /></label>

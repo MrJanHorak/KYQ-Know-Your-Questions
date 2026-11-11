@@ -1,0 +1,12 @@
+'use client';
+import { useState } from 'react';
+import { multiFactor, TotpMultiFactorGenerator, type TotpSecret, type User } from 'firebase/auth';
+import { QRCodeSVG } from 'qrcode.react';
+import { confirmOwnershipIdentity } from './confirmOwnershipIdentity';
+
+export default function AuthenticatorSetup({user}:{user:User}) {
+  const [secret,setSecret]=useState<TotpSecret|null>(null),[code,setCode]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[enrolled,setEnrolled]=useState(()=>multiFactor(user).enrolledFactors.length>0);
+  async function start(){setBusy(true);setMessage('');try{await confirmOwnershipIdentity(user);const session=await multiFactor(user).getSession();setSecret(await TotpMultiFactorGenerator.generateSecret(session));}catch(error){setMessage(error instanceof Error?error.message:'Could not start authenticator setup.');}finally{setBusy(false);}}
+  async function finish(event:React.FormEvent){event.preventDefault();if(!secret)return;setBusy(true);setMessage('');try{await multiFactor(user).enroll(TotpMultiFactorGenerator.assertionForEnrollment(secret,code.trim()),'Authenticator app');setSecret(null);setCode('');setEnrolled(true);setMessage('Authenticator enabled. You will be asked for a code when you sign in.');}catch(error){setMessage(error instanceof Error?error.message:'Could not verify the code.');}finally{setBusy(false);}}
+  return <section><h2>Account security</h2>{enrolled?<p>Authenticator verification is enabled for this account.</p>:<><p>Add an authenticator app to protect your instructor account. Keep a secure backup of your authenticator; losing it can prevent sign-in.</p>{!secret?<button type='button' className='outline' disabled={busy} onClick={()=>void start()}>Set up authenticator</button>:<form onSubmit={event=>void finish(event)}><p>Scan this code with your authenticator app, or enter the setup key manually.</p><QRCodeSVG value={secret.generateQrCodeUrl(user.email || undefined,'Know Your Questions')} size={180}/><p>Setup key: <code>{secret.secretKey}</code></p><label>AUTHENTICATOR CODE<input value={code} onChange={event=>setCode(event.target.value)} inputMode='numeric' autoComplete='one-time-code' required/></label><button className='primary' disabled={busy}>Verify and enable</button><button type='button' className='outline' disabled={busy} onClick={()=>{setSecret(null);setCode('');}}>Cancel</button></form>}</>}{message&&<p role='status'>{message}</p>}</section>;
+}
