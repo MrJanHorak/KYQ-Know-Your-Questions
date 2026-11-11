@@ -1,13 +1,8 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { EmailAuthProvider, reauthenticateWithCredential, type User } from 'firebase/auth';
-
-export async function confirmOwnershipIdentity(user:User) {
-  const password=window.prompt('Confirm your password to change team ownership:');
-  if (!password || !user.email) throw new Error('Password confirmation cancelled.');
-  await reauthenticateWithCredential(user,EmailAuthProvider.credential(user.email,password));
-  await user.getIdToken(true);
-}
+import type { User } from 'firebase/auth';
+import RecoveryContact from './RecoveryContact';
+import { confirmOwnershipIdentity } from './confirmOwnershipIdentity';
 
 type Data={members:{uid:string;email:string}[];invitations:{id:string;email:string}[];events:{id:string;action:string;actor:string;target:string}[]};
 export default function TeamOwners({teamId,user,onRemoved}:{teamId:string;user:User;onRemoved:()=>void}) {
@@ -20,6 +15,7 @@ export default function TeamOwners({teamId,user,onRemoved}:{teamId:string;user:U
     {link && <p>Share this one-time link with the invited person. It expires in seven days.<input aria-label='Owner invitation link' readOnly value={link} onFocus={e=>e.currentTarget.select()}/><button className='outline' onClick={()=>void navigator.clipboard.writeText(link).then(()=>setMessage('Invitation link copied.')).catch(()=>setMessage('Select and copy the link.'))}>Copy link</button></p>}
     <h3>Owners</h3>{data.members.map(member=><div key={member.uid}>{member.email || member.uid}{member.uid===user.uid?' (you)':''} <button className='outline' disabled={busy} onClick={()=>{if(window.confirm(`Remove ${member.email || member.uid} as a team owner?`)) void change('DELETE',{uid:member.uid});}}>Remove</button></div>)}
     {!!data.invitations.length && <><h3>Pending invitations</h3>{data.invitations.map(invite=><div key={invite.id}>{invite.email} <button className='outline' disabled={busy} onClick={()=>void change('DELETE',{invitationId:invite.id})}>Revoke</button></div>)}</>}
+    <RecoveryContact teamId={teamId} user={user}/>
     {!!data.events.length && <><h3>Recent ownership activity</h3>{data.events.map(event=><p key={event.id}>{event.actor} {event.action}: {event.target}</p>)}</>}{message && <p role='status'>{message}</p>}
   </div>;
 }
