@@ -227,6 +227,7 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
         method: edit ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ boardId, questionId: active.id, replyId: editingReply, text, author: replyName.trim(), idToken: await auth.currentUser.getIdToken() }),
       });
+      if (response.status === 429) { setReplyError('Please wait 15 seconds between replies.'); return; }
       if (!response.ok) throw new Error();
       if (edit) { setEditingReply(null); setReplyDraft(''); }
       else { setReply(''); setReplyName(''); }

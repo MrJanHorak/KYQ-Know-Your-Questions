@@ -124,6 +124,8 @@ Board password attempts are limited per board to 10 failed attempts per Firebase
 
 Deploy the app and `firestore.rules` together, especially when updating board access behavior. The rules deny access to the original single-board collection and direct question creation. Coordinate deployment: publishing the new rules before the app prevents older clients from posting; refresh open boards after deployment.
 
+New replies are also limited on the server to one per board identity every 15 seconds, across all questions on that board. Editing an existing reply is not limited. Anonymous identities can be replaced, so this is not a complete spam defense.
+
 ## Commands
 
 | Command | Description |

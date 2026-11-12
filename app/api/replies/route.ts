@@ -37,12 +37,17 @@ async function changeReply(req: NextRequest, edit: boolean) {
         if (replies[index].authorUid !== user.uid) return 403;
         replies[index] = { ...replies[index], text: text.trim() };
       } else {
+        const limitRef = boardRef.collection('_replyCooldowns').doc(user.uid);
+        const limit = await tx.get(limitRef);
+        const now = Date.now();
+        if (typeof limit.get('lastPostedAt') === 'number' && now - limit.get('lastPostedAt') < 15000) return 429;
+        tx.set(limitRef, { lastPostedAt: now });
         replies.push({ id: randomUUID(), authorUid: user.uid, author: author.trim() || 'Anonymous', text: text.trim(), createdAt: new Date().toISOString() });
       }
       tx.update(questionRef, { replies });
       return 200;
     });
-    return result === 200 ? NextResponse.json({ ok: true }) : NextResponse.json({ error: 'Could not save the reply.' }, { status: result });
+    return result === 200 ? NextResponse.json({ ok: true }) : NextResponse.json({ error: result === 429 ? 'Please wait 15 seconds between replies.' : 'Could not save the reply.' }, { status: result });
   } catch { return NextResponse.json({ error: 'Could not save the reply.' }, { status: 500 }); }
 }
 export async function POST(req: NextRequest) { return changeReply(req, false); }
