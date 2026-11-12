@@ -17,14 +17,7 @@ service cloud.firestore {
           && request.auth.token.get('accessVersion', 0) == get(/databases/$(database)/documents/boards/$(boardId)).data.get('accessVersion', 0);
       }
       allow read: if hasAccess();
-      allow create: if hasAccess()
-        && request.resource.data.keys().hasOnly(['question','lessonReference','authorName','authorUid','upvotes','upvoteCount','status','createdAt','replies'])
-        && request.resource.data.question is string && request.resource.data.question.size() > 0 && request.resource.data.question.size() <= 2000
-        && request.resource.data.lessonReference is string && request.resource.data.lessonReference.size() <= 500
-        && request.resource.data.authorUid == request.auth.uid
-        && request.resource.data.authorName is string && request.resource.data.authorName.size() <= 80
-        && request.resource.data.upvotes == [] && request.resource.data.upvoteCount == 0
-        && request.resource.data.status == 'unanswered' && request.resource.data.createdAt == request.time && request.resource.data.replies == [];
+      allow create: if false; // Questions are created by the rate-limited server endpoint.
       allow update: if hasAccess() && (
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes','upvoteCount'])
          && !(request.auth.uid in resource.data.upvotes)

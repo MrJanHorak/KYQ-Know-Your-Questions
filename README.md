@@ -83,6 +83,8 @@ The instructor account area at `/instructor` uses a separate Firebase email/pass
 
    Open [http://localhost:3000](http://localhost:3000), or visit [instructor accounts](http://localhost:3000/instructor) to create an account and board.
 
+To use the app's centered password-reset form, deploy the app first, then set the custom action URL for the **password reset** email template in Firebase Authentication to `https://YOUR_DEPLOYED_DOMAIN/reset-password`. Leave other email templates on their existing handlers. Test a newly requested reset link after configuring it; existing links may still use the previous handler.
+
 ### Environment variables
 
 | Variable | Purpose |
@@ -118,9 +120,9 @@ Boards created under the former shared instructor login remain unassigned and in
 
 Board passwords are salted and hashed on the server. After a participant unlocks a board, Firestore rules check a board-specific Firebase token and its access version. Access persists in the same browser until the password changes, the participant locks the board or signs out, or site data is cleared. Use HTTPS and strong, unique passwords; anyone with a board password can access that board.
 
-Password attempts are limited in Firestore by client IP. This depends on correct trusted proxy and IP configuration. The question-posting cooldown is a client-side convenience, not a server-enforced spam limit. Anonymous Firebase identities are browser-specific and can change when site data is cleared.
+Password attempts are limited in Firestore by client IP. This depends on correct trusted proxy and IP configuration, which must be verified for the deployment. Question creation is limited on the server to one per board identity every 15 seconds; anonymous identities can be replaced, so this is not a complete spam defense. Anonymous Firebase identities are browser-specific and can change when site data is cleared.
 
-Deploy the app and `firestore.rules` together, especially when updating board access behavior. The rules deny access to the original single-board collection. Coordinate deployment: publishing the rules first interrupts the old app, while publishing the app first temporarily prevents access to new boards.
+Deploy the app and `firestore.rules` together, especially when updating board access behavior. The rules deny access to the original single-board collection and direct question creation. Coordinate deployment: publishing the new rules before the app prevents older clients from posting; refresh open boards after deployment.
 
 ## Commands
 

@@ -11,6 +11,8 @@ assert.equal((await get('boards/board-a/questions/q1')).status,403,'Unauthentica
 assert.equal((await get('boards/board-a/questions/q1',jwt())).status,403,'Anonymous access should fail');
 assert.equal((await get('boards/board-a/questions/q1',jwt({boardId:'board-b'}))).status,403,'Another board must not be readable');
 assert.equal((await get('boards/board-a/questions/q1',jwt({boardId:'board-a'}))).status,200,'Correct board should be readable');
+const directCreate = await fetch(`${root}/boards/board-a/questions/direct`, {method:'PATCH', headers:{Authorization:`Bearer ${jwt({boardId:'board-a'})}`, 'Content-Type':'application/json'}, body:JSON.stringify({fields:{question:{stringValue:'Direct post'}}})});
+assert.equal(directCreate.status,403,'Clients cannot bypass the server question cooldown');
 await fetch(`${root}/teams/team-a`,{method:'PATCH',headers:ownerHeaders,body:JSON.stringify({fields:{name:{stringValue:'Test team'}}})});
 await fetch(`${root}/teams/team-a/members/co-owner`,{method:'PATCH',headers:ownerHeaders,body:JSON.stringify({fields:{role:{stringValue:'owner'}}})});
 const ownerToken=jwt({boardId:'board-a',managerUid:'co-owner'});

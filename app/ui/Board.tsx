@@ -2,12 +2,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { onAuthStateChanged, signInAnonymously, signInWithCustomToken, signOut } from 'firebase/auth';
 import {
-  addDoc,
   collection,
   doc,
   onSnapshot,
   runTransaction,
-  serverTimestamp,
   updateDoc,
 } from 'firebase/firestore';
 import {
@@ -184,17 +182,14 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
     if (!db || !uid || !question.trim() || question.length > 2000 || cooldown || busy) return;
     setBusy(true);
     try {
-      await addDoc(collection(db, 'boards', boardId, 'questions'), {
+      const response = await fetch('/api/questions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        boardId,
         question: question.trim(),
         lessonReference: reference.trim(),
-        authorName: name.trim() || 'Anonymous',
-        authorUid: uid,
-        upvotes: [],
-        upvoteCount: 0,
-        status: 'unanswered',
-        createdAt: serverTimestamp(),
-        replies: [],
-      });
+        authorName: name.trim(),
+        idToken: await auth!.currentUser!.getIdToken(),
+      }) });
+      if (!response.ok) { setError(response.status === 429 ? 'Please wait before posting another question.' : 'Your question could not be posted. Please try again.'); return; }
       localStorage.setItem('kyq-cooldown', String(Date.now() + 15000));
       setQuestion('');
       setReference('');

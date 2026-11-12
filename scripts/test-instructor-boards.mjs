@@ -160,6 +160,9 @@ try {
   const boardToken = (await exchange.json()).idToken;
   const readQuestion = () => fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/v1/projects/${projectId}/databases/(default)/documents/boards/${board.id}/questions/question`,{headers:{authorization:`Bearer ${boardToken}`}});
   assert.equal((await readQuestion()).status,200);
+  const postQuestion = () => request('/api/questions', null, 'POST', {boardId:board.id, question:'A question', lessonReference:'', authorName:'Tester', idToken:boardToken});
+  assert.equal((await postQuestion()).status,200,'A valid board session can post a question');
+  assert.equal((await postQuestion()).status,429,'A second question is rate limited');
   assert.equal((await request(`/api/boards/export?boardId=${board.id}&format=json`, outsider)).status,200);
   assert.equal((await request('/api/admin', outsider, 'PATCH', {boardId:board.id,id:'question',operation:'status',value:'in_review'})).status,200);
   assert.equal((await request('/api/boards/password', outsider, 'PATCH', {boardId:board.id,password:'test-password'})).status,200);
@@ -167,6 +170,7 @@ try {
   assert.equal((await request(`/api/boards/export?boardId=${otherBoard.id}&format=json`, outsider)).status,401);
   assert.equal((await request('/api/instructor/managers', owner, 'DELETE', {boardId:board.id,uid:outsiderUid})).status,200);
   assert.equal((await readQuestion()).status,403, 'Revoked managers lose access to already-open instructor board sessions');
+  assert.equal((await postQuestion()).status,403,'Revoked managers cannot post using an old session');
   assert(!(await (await request('/api/instructor/shared-boards', outsider)).json()).boards.some(item=>item.id===board.id));
   assert.equal((await instructorAccess(outsider)).status,401);
   assert.equal((await request(`/api/boards/export?boardId=${board.id}&format=json`, outsider)).status,401);
