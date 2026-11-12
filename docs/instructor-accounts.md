@@ -7,7 +7,7 @@ Team owners can create and manage team-owned boards from `/instructor`. An owner
 ## Remaining work
 
 1. Configure a general-purpose email provider and implement notifications to owners about ownership and recovery-contact changes. Ownership activity is visible in the app; email notifications are not yet sent. There is no recovery path when all owners and the recovery contact lose access.
-2. Add operational safeguards for production: multifactor authentication, monitoring, abuse controls, account recovery, data retention, pagination for shared boards and manager lists, and cost/load testing for expected usage. Review Firebase Authentication and Firestore limits and deployment configuration.
+2. Complete real-project MFA testing and establish lost-authenticator recovery before considering mandatory enforcement. Add monitoring, abuse controls, data retention, pagination for shared boards and manager lists, and cost/load testing for expected usage. Review Firebase Authentication and Firestore limits and deployment configuration. See [project status](project-status.md) for the latest handoff.
 
 The application has an authenticator-app enrollment and sign-in flow, including a second-factor challenge when reauthenticating to change ownership. It is hidden by default. To evaluate it, first upgrade a non-production Firebase project to Authentication with Identity Platform, enable TOTP MFA in that project, then build with `NEXT_PUBLIC_TOTP_MFA_ENABLED=true`. Firebase's Auth emulator does not support TOTP, so verify enrollment, sign-in, reauthentication, invalid codes and account recovery against the configured test project before production use.
 

@@ -131,3 +131,5 @@ Deploy the app and `firestore.rules` together, especially when updating board ac
 | `npm start` | Run the production build |
 
 The repository also contains Firestore rules and instructor board API integration scripts in `scripts/`; see [the emulator instructions](docs/instructor-accounts.md). The default `npm test` script is a placeholder.
+
+For the current implementation status, test-project context, and recommended next steps, see [project status](docs/project-status.md).
