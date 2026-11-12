@@ -1,9 +1,11 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
-export default function VerificationCode({value,onChange,disabled=false,autoFocus=false}:{value:string;onChange:(value:string)=>void;disabled?:boolean;autoFocus?:boolean}) {
+export default function VerificationCode({value,onChange,disabled=false,autoFocus=false,focusRequest=0}:{value:string;onChange:(value:string)=>void;disabled?:boolean;autoFocus?:boolean;focusRequest?:number}) {
   const inputs=useRef<(HTMLInputElement|null)[]>([]);
+  const handledFocus=useRef(0);
+  useEffect(()=>{if(!disabled && focusRequest!==handledFocus.current){inputs.current[0]?.focus();handledFocus.current=focusRequest;}},[disabled,focusRequest]);
   const digits=value.padEnd(6,' ').slice(0,6).split('');
   function put(index:number,text:string) {
     const incoming=text.replace(/\D/g,'').slice(0,6-index);

@@ -5,6 +5,7 @@ import { EmailAuthProvider, getMultiFactorResolver, reauthenticateWithCredential
 import { instructorAuth } from '../../lib/instructorFirebase';
 import Dialog from './Dialog';
 import VerificationCode from './VerificationCode';
+import { verificationError } from '../../lib/verificationError';
 
 type Confirmation={title:string;message:string;confirmLabel?:string;danger?:boolean};
 type Interaction={confirm:(options:Confirmation)=>Promise<boolean>;reauthenticate:(user:User,reason?:string)=>Promise<boolean>};
@@ -29,6 +30,7 @@ export default function InteractionProvider({children}:{children:React.ReactNode
 
 function ReauthenticationDialog({user,reason,onFinish}:{user:User;reason:string;onFinish:(ok:boolean)=>void}) {
   const [password,setPassword]=useState(''),[code,setCode]=useState(''),[resolver,setResolver]=useState<MultiFactorResolver|null>(null),[factorUid,setFactorUid]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+  const [focusRequest,setFocusRequest]=useState(0);
   async function submit(event:React.FormEvent) {
     event.preventDefault();setBusy(true);setError('');
     try {
@@ -47,9 +49,9 @@ function ReauthenticationDialog({user,reason,onFinish}:{user:User;reason:string;
       }
       await user.getIdToken(true);onFinish(true);
     } catch(cause) {
-      const code=(cause as {code?:string}).code;
-      setError(code==='auth/too-many-requests'?'Too many attempts. Please wait and try again.':resolver?'Could not verify that code. Check your authenticator and try again.':'Could not verify your password. Please try again.');
+      if(resolver){const result=verificationError(cause);if(result.clearCode){setCode('');setFocusRequest(count=>count+1);}setError(result.message);}
+      else {const errorCode=(cause as {code?:string}).code;setError(errorCode==='auth/too-many-requests'?'Too many attempts. Please wait and try again.':'Could not verify your password. Please try again.');}
     } finally {setBusy(false);}
   }
-  return <Dialog title={resolver?'Verify it’s you':'Confirm it’s you'} onClose={()=>{if(!busy)onFinish(false);}}><form className='security-form' onSubmit={event=>void submit(event)}><p>{resolver?'Enter the six-digit code from your authenticator app.':reason}</p>{resolver?<VerificationCode value={code} onChange={setCode} disabled={busy} autoFocus/>:<label>PASSWORD<input type='password' autoComplete='current-password' value={password} onChange={event=>setPassword(event.target.value)} autoFocus required disabled={busy}/></label>}{error&&<p className='security-error' role='alert'>{error}</p>}<div className='dialog-actions'><button type='button' className='outline' disabled={busy} onClick={()=>onFinish(false)}>Cancel</button><button className='primary' disabled={busy || (resolver?!/^\d{6}$/.test(code):!password)}>{busy?'Checking…':'Continue'}</button></div></form></Dialog>;
+  return <Dialog title={resolver?'Verify it’s you':'Confirm it’s you'} onClose={()=>{if(!busy)onFinish(false);}}><form className='security-form' onSubmit={event=>void submit(event)}><p>{resolver?'Enter the six-digit code from your authenticator app.':reason}</p>{resolver?<VerificationCode value={code} onChange={setCode} disabled={busy} autoFocus focusRequest={focusRequest}/>:<label>PASSWORD<input type='password' autoComplete='current-password' value={password} onChange={event=>setPassword(event.target.value)} autoFocus required disabled={busy}/></label>}{error&&<p className='security-error' role='alert'>{error}</p>}<div className='dialog-actions'><button type='button' className='outline' disabled={busy} onClick={()=>onFinish(false)}>Cancel</button><button className='primary' disabled={busy || (resolver?!/^\d{6}$/.test(code):!password)}>{busy?'Checking…':'Continue'}</button></div></form></Dialog>;
 }

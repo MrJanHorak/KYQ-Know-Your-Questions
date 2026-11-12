@@ -7,6 +7,7 @@ import { instructorAuth } from '../../lib/instructorFirebase';
 import InstructorBoards from './InstructorBoards';
 import AuthenticatorSetup from './AuthenticatorSetup';
 import VerificationCode from './VerificationCode';
+import { verificationError } from '../../lib/verificationError';
 
 function authErrorMessage(error: unknown, creating: boolean) {
   const code = typeof error === 'object' && error !== null && 'code' in error ? (error as {code?: unknown}).code : undefined;
@@ -45,6 +46,7 @@ export default function InstructorAccount() {
   const [resolver,setResolver]=useState<MultiFactorResolver|null>(null);
   const [factorUid,setFactorUid]=useState('');
   const [factorCode,setFactorCode]=useState('');
+  const [factorFocusRequest,setFactorFocusRequest]=useState(0);
   const [mfaRequired,setMfaRequired]=useState(false);
   const [mfaSatisfied,setMfaSatisfied]=useState(false);
   const [accountState, setAccountState] = useState<'checking'|'unverified'|'setup-error'|'ready'>('checking');
@@ -105,7 +107,7 @@ export default function InstructorAccount() {
     } catch (error) { if(!create && (error as {code?:string}).code==='auth/multi-factor-auth-required'){const next=getMultiFactorResolver(instructorAuth,error as MultiFactorError);const factor=next.hints.find(hint=>hint.factorId===TotpMultiFactorGenerator.FACTOR_ID);if(factor){setResolver(next);setFactorUid(factor.uid);setPassword('');}else setAuthError('This account has no supported authenticator factor.');}else setAuthError(authErrorMessage(error, create)); }
     finally { setBusy(false); }
   }
-  async function verifyFactor(event:React.FormEvent){event.preventDefault();if(!resolver)return;setBusy(true);setAuthError('');try{await resolver.resolveSignIn(TotpMultiFactorGenerator.assertionForSignIn(factorUid,factorCode.trim()));setResolver(null);setFactorCode('');}catch{setAuthError('Could not verify that code. Check your authenticator and try again.');}finally{setBusy(false);}}
+  async function verifyFactor(event:React.FormEvent){event.preventDefault();if(!resolver)return;setBusy(true);setAuthError('');try{await resolver.resolveSignIn(TotpMultiFactorGenerator.assertionForSignIn(factorUid,factorCode.trim()));setResolver(null);setFactorCode('');}catch(error){const result=verificationError(error);if(result.clearCode){setFactorCode('');setFactorFocusRequest(count=>count+1);}setAuthError(result.message);}finally{setBusy(false);}}
   async function refresh() {
     if (!user) return;
     setMessage('');
@@ -127,7 +129,7 @@ export default function InstructorAccount() {
       </>}
       <button className='outline' disabled={busy} onClick={() => { setMessage(''); if (instructorAuth) void signOut(instructorAuth); }}>Sign out</button>
       </div>
-    </> : resolver ? <form className='security-signin' onSubmit={verifyFactor}><h1>Verify your sign-in.</h1><p>Enter the six-digit code from your authenticator app.</p><VerificationCode value={factorCode} onChange={setFactorCode} disabled={busy} autoFocus/>{authError&&<p className='account-error' role='alert'>{authError}</p>}<div className='account-actions'><button className='primary' disabled={busy||!/^\d{6}$/.test(factorCode)}>{busy?'Verifying…':'Verify'}</button><button type='button' className='outline' disabled={busy} onClick={()=>{setResolver(null);setFactorCode('');setAuthError('');}}>Cancel</button></div></form> : <form onSubmit={submit}>
+    </> : resolver ? <form className='security-signin' onSubmit={verifyFactor}><h1>Verify your sign-in.</h1><p>Enter the six-digit code from your authenticator app.</p><VerificationCode value={factorCode} onChange={setFactorCode} disabled={busy} autoFocus focusRequest={factorFocusRequest}/>{authError&&<p className='account-error' role='alert'>{authError}</p>}<div className='account-actions'><button className='primary' disabled={busy||!/^\d{6}$/.test(factorCode)}>{busy?'Verifying…':'Verify'}</button><button type='button' className='outline' disabled={busy} onClick={()=>{setResolver(null);setFactorCode('');setFactorFocusRequest(0);setAuthError('');}}>Cancel</button></div></form> : <form onSubmit={submit}>
       <h1>{create ? 'Create your account.' : 'Welcome back.'}</h1>
       <p>Sign in or create an account to manage your boards.</p>
       <label>EMAIL<input type='email' autoComplete='email' value={email} onChange={e=>setEmail(e.target.value)} required /></label>
