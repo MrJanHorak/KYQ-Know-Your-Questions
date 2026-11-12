@@ -488,18 +488,16 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
                           <Avatar name={q.authorName} authorUid={q.authorUid} />{' '}
                           {q.authorName || 'Anonymous'}
                         </span>
-                        <div className='question-card-actions'>
-                          {!presenter && (admin || q.authorUid === uid) && (!admin || ['admin','owner'].includes(boardRole)) && <button type='button' className='question-edit-action' onClick={() => startEdit(q)}>{admin ? 'Edit' : 'Edit your question'}</button>}
-                          <button type='button' onClick={() => { setEditingReply(null); setReplyError(''); setSelected(q.id); }}>
-                            <MessageCircle size={15} /> {q.replies?.length || 0}{' '}
-                            {(q.replies?.length || 0) === 1 ? 'reply' : 'replies'}{' '}
-                            <ArrowRight size={14} />
-                          </button>
-                        </div>
+                        <button onClick={() => { setEditingReply(null); setReplyError(''); setSelected(q.id); }}>
+                          <MessageCircle size={15} /> {q.replies?.length || 0}{' '}
+                          {(q.replies?.length || 0) === 1 ? 'reply' : 'replies'}{' '}
+                          <ArrowRight size={14} />
+                        </button>
                       </div>
-                      {!presenter && admin && (
+                      {!presenter && (admin || q.authorUid === uid) && (
                         <div className='admin-actions'>
                           {admin && <><button onClick={() => action(q.id, 'status', 'in_review')}>In review</button><button onClick={() => action(q.id, 'status', 'answered')}>Mark answered</button></>}
+                          {(!admin || ['admin','owner'].includes(boardRole)) && <button onClick={() => startEdit(q)}>Edit{!admin ? ' your question' : ''}</button>}
                           {admin && canModerate && <button onClick={() => { setDialogError(''); setDeleting(q); }}>Delete</button>}
                         </div>
                       )}
@@ -630,7 +628,7 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
                       {editingReply === r.id && r.id ? <form onSubmit={e => { e.preventDefault(); void saveReply(true); }} className='reply-edit'>
                         <ReplyEditor label='EDIT YOUR REPLY' autoFocus value={replyDraft} onChange={setReplyDraft} />
                         <div className='dialog-actions'><button type='button' className='outline' disabled={busy} onClick={() => { setEditingReply(null); setReplyError(''); }}>Cancel</button><button className='primary' disabled={busy || !replyDraft.trim() || replyDraft.length > 2000}>{busy ? 'Saving…' : 'Save changes'}</button></div>
-                      </form> : <><div className='reply-markdown'><ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml disallowedElements={['img']}>{r.text}</ReactMarkdown></div>{r.id && r.authorUid === uid && <button type='button' className='outline edit-reply-button' onClick={() => { setEditingReply(r.id!); setReplyDraft(r.text); setReplyError(''); }}>Edit your reply</button>}{admin && canModerate && r.id && <button type='button' className='outline edit-reply-button' onClick={() => void (async()=>{if(await confirm({title:'Delete reply?',message:'This reply will be permanently deleted.',confirmLabel:'Delete reply',danger:true})) await action(active.id, 'deleteReply', undefined, undefined, r.id);})()}>Delete reply</button>}</>}
+                      </form> : <><div className='reply-markdown'><ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml disallowedElements={['img']}>{r.text}</ReactMarkdown></div>{r.id && (r.authorUid === uid || (admin && canModerate)) && <div className='reply-actions'>{r.authorUid === uid && <button type='button' className='outline' onClick={() => { setEditingReply(r.id!); setReplyDraft(r.text); setReplyError(''); }}>Edit your reply</button>}{admin && canModerate && <button type='button' className='outline' onClick={() => void (async()=>{if(await confirm({title:'Delete reply?',message:'This reply will be permanently deleted.',confirmLabel:'Delete reply',danger:true})) await action(active.id, 'deleteReply', undefined, undefined, r.id);})()}>Delete reply</button>}</div>}</>}
                     </div>
                   </div>
                 ))
