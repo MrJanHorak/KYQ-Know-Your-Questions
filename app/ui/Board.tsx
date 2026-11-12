@@ -32,6 +32,7 @@ import { auth, configured, db } from '../../lib/firebase';
 import { instructorAuth } from '../../lib/instructorFirebase';
 import type { Question, Status } from '../../lib/types';
 import Dialog from './Dialog';
+import { useInteraction } from './InteractionProvider';
 import ReplyEditor from './ReplyEditor';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -80,6 +81,7 @@ function Reference({ value, iconSize }: { value: string; iconSize: number }) {
   return <div className='reference'><Link2 size={iconSize} /> {href ? <a href={href} target='_blank' rel='noopener noreferrer'>{value}</a> : value}</div>;
 }
 export default function Board({ admin = false, boardId }: { admin?: boolean; boardId: string }) {
+  const {confirm}=useInteraction();
   const [uid, setUid] = useState('');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(configured);
@@ -630,7 +632,7 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
                       {editingReply === r.id && r.id ? <form onSubmit={e => { e.preventDefault(); void saveReply(true); }} className='reply-edit'>
                         <ReplyEditor label='EDIT YOUR REPLY' autoFocus value={replyDraft} onChange={setReplyDraft} />
                         <div className='dialog-actions'><button type='button' className='outline' disabled={busy} onClick={() => { setEditingReply(null); setReplyError(''); }}>Cancel</button><button className='primary' disabled={busy || !replyDraft.trim() || replyDraft.length > 2000}>{busy ? 'Saving…' : 'Save changes'}</button></div>
-                      </form> : <><div className='reply-markdown'><ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml disallowedElements={['img']}>{r.text}</ReactMarkdown></div>{r.id && r.authorUid === uid && <button type='button' className='outline edit-reply-button' onClick={() => { setEditingReply(r.id!); setReplyDraft(r.text); setReplyError(''); }}>Edit your reply</button>}{admin && canModerate && r.id && <button type='button' className='outline edit-reply-button' onClick={() => { if (window.confirm('Delete this reply?')) void action(active.id, 'deleteReply', undefined, undefined, r.id); }}>Delete reply</button>}</>}
+                      </form> : <><div className='reply-markdown'><ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml disallowedElements={['img']}>{r.text}</ReactMarkdown></div>{r.id && r.authorUid === uid && <button type='button' className='outline edit-reply-button' onClick={() => { setEditingReply(r.id!); setReplyDraft(r.text); setReplyError(''); }}>Edit your reply</button>}{admin && canModerate && r.id && <button type='button' className='outline edit-reply-button' onClick={() => void (async()=>{if(await confirm({title:'Delete reply?',message:'This reply will be permanently deleted.',confirmLabel:'Delete reply',danger:true})) await action(active.id, 'deleteReply', undefined, undefined, r.id);})()}>Delete reply</button>}</>}
                     </div>
                   </div>
                 ))

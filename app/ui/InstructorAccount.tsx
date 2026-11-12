@@ -6,6 +6,7 @@ import { createUserWithEmailAndPassword, getMultiFactorResolver, multiFactor, on
 import { instructorAuth } from '../../lib/instructorFirebase';
 import InstructorBoards from './InstructorBoards';
 import AuthenticatorSetup from './AuthenticatorSetup';
+import VerificationCode from './VerificationCode';
 
 function authErrorMessage(error: unknown, creating: boolean) {
   const code = typeof error === 'object' && error !== null && 'code' in error ? (error as {code?: unknown}).code : undefined;
@@ -126,7 +127,7 @@ export default function InstructorAccount() {
       </>}
       <button className='outline' disabled={busy} onClick={() => { setMessage(''); if (instructorAuth) void signOut(instructorAuth); }}>Sign out</button>
       </div>
-    </> : resolver ? <form onSubmit={verifyFactor}><h1>Verify your sign-in.</h1><p>Enter the code from your authenticator app.</p><label>AUTHENTICATOR CODE<input value={factorCode} onChange={event=>setFactorCode(event.target.value)} inputMode='numeric' autoComplete='one-time-code' required/></label>{authError&&<p className='account-error' role='alert'>{authError}</p>}<div className='account-actions'><button className='primary' disabled={busy}>Verify</button><button type='button' className='outline' disabled={busy} onClick={()=>{setResolver(null);setFactorCode('');setAuthError('');}}>Cancel</button></div></form> : <form onSubmit={submit}>
+    </> : resolver ? <form className='security-signin' onSubmit={verifyFactor}><h1>Verify your sign-in.</h1><p>Enter the six-digit code from your authenticator app.</p><VerificationCode value={factorCode} onChange={setFactorCode} disabled={busy} autoFocus/>{authError&&<p className='account-error' role='alert'>{authError}</p>}<div className='account-actions'><button className='primary' disabled={busy||!/^\d{6}$/.test(factorCode)}>{busy?'Verifying…':'Verify'}</button><button type='button' className='outline' disabled={busy} onClick={()=>{setResolver(null);setFactorCode('');setAuthError('');}}>Cancel</button></div></form> : <form onSubmit={submit}>
       <h1>{create ? 'Create your account.' : 'Welcome back.'}</h1>
       <p>Sign in or create an account to manage your boards.</p>
       <label>EMAIL<input type='email' autoComplete='email' value={email} onChange={e=>setEmail(e.target.value)} required /></label>

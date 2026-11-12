@@ -1,12 +1,14 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
+import { useInteraction } from './InteractionProvider';
 
 const roles = ['responder','moderator','manager','admin'] as const;
 type Role = typeof roles[number];
 type Member = {uid:string;email:string;role:Role};
 type Invitation = {id:string;email:string;role:Role};
 export default function BoardManagers({boardId,user}:{boardId:string;user:User}) {
+  const {confirm}=useInteraction();
   const [members,setMembers]=useState<Member[]>([]), [invitations,setInvitations]=useState<Invitation[]>([]);
   const [email,setEmail]=useState(''), [role,setRole]=useState<Role>('responder'), [link,setLink]=useState(''), [message,setMessage]=useState(''), [busy,setBusy]=useState(false);
   const request=useCallback(async (method:string,body?:object)=>fetch(`/api/instructor/managers${method==='GET' ? `?boardId=${encodeURIComponent(boardId)}` : ''}`,{method,headers:{Authorization:`Bearer ${await user.getIdToken()}`,'Content-Type':'application/json'},...(body ? {body:JSON.stringify({boardId,...body})} : {})}),[boardId,user]);
@@ -22,7 +24,7 @@ export default function BoardManagers({boardId,user}:{boardId:string;user:User})
     </form>
     {link && <p>Share this one-time link with the invited person. It expires in seven days.<input readOnly aria-label='Invitation link' value={link} onFocus={e=>e.currentTarget.select()}/><button type='button' className='outline' onClick={()=>void navigator.clipboard.writeText(link).then(()=>setMessage('Invitation link copied.')).catch(()=>setMessage('Select and copy the invitation link.'))}>Copy link</button></p>}
     <h3>Managers</h3>
-    {members.length ? members.map(member=><div key={member.uid}><span>{member.email || member.uid} </span><select aria-label={`Role for ${member.email || member.uid}`} value={member.role} disabled={busy} onChange={e=>void change('PATCH',{uid:member.uid,role:e.target.value})}>{roles.map(r=><option key={r} value={r}>{r}</option>)}</select><button className='outline' disabled={busy} onClick={()=>{if(window.confirm(`Remove ${member.email || member.uid} from this board?`)) void change('DELETE',{uid:member.uid});}}>Remove</button></div>) : <p>No managers yet.</p>}
+    {members.length ? members.map(member=><div key={member.uid}><span>{member.email || member.uid} </span><select aria-label={`Role for ${member.email || member.uid}`} value={member.role} disabled={busy} onChange={e=>void change('PATCH',{uid:member.uid,role:e.target.value})}>{roles.map(r=><option key={r} value={r}>{r}</option>)}</select><button className='outline' disabled={busy} onClick={()=>void (async()=>{if(await confirm({title:'Remove board manager?',message:`Remove ${member.email || member.uid} from this board?`,confirmLabel:'Remove',danger:true}))await change('DELETE',{uid:member.uid});})()}>Remove</button></div>) : <p>No managers yet.</p>}
     {!!invitations.length && <><h3>Pending invitations</h3>{invitations.map(invite=><div key={invite.id}>{invite.email} · {invite.role} <button className='outline' disabled={busy} onClick={()=>void change('DELETE',{invitationId:invite.id})}>Revoke</button></div>)}</>}
     {message && <p role='status'>{message}</p>}
   </div>;
