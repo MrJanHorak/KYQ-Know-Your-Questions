@@ -12,7 +12,7 @@ const app = initializeApp({projectId});
 const auth = getAuth(app);
 const db = getFirestore(app);
 const base = 'http://127.0.0.1:3198';
-const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', '3198'], {env:{...process.env, NEXT_PUBLIC_FIREBASE_PROJECT_ID:projectId, SESSION_SECRET:'emulator-only-secret'}, stdio:'inherit'});
+const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', '3198'], {env:{...process.env, NEXT_PUBLIC_FIREBASE_PROJECT_ID:projectId, SESSION_SECRET:'emulator-only-secret', VERCEL:'1'}, stdio:'inherit'});
 async function token(uid) {
   await auth.createUser({uid, email:`${uid}@example.test`, emailVerified:true});
   const custom = await auth.createCustomToken(uid);
@@ -34,6 +34,11 @@ try {
   assert.equal((await request('/api/instructor/account', recovery, 'POST')).status, 200);
   const created = await request('/api/instructor/boards', owner, 'POST', {name:'Team board',password:'test-password'});
   assert.equal(created.status, 200); const board = await created.json();
+  const limitedBoard = await (await request('/api/instructor/boards', owner, 'POST', {name:'Rate limit board',password:'test-password'})).json();
+  const attempt = (ip, spoofed) => fetch(base+'/api/boards/access', {method:'POST', headers:{'content-type':'application/json', 'x-vercel-forwarded-for':ip, 'x-real-ip':spoofed, 'x-forwarded-for':spoofed}, body:JSON.stringify({boardId:limitedBoard.id, password:'incorrect', idToken:outsider})});
+  for (let i=0; i<10; i++) assert.equal((await attempt('192.0.2.1', `192.0.2.${i+10}`)).status,401);
+  assert.equal((await attempt('192.0.2.1', '192.0.2.99')).status,429,'Changing untrusted forwarding headers must not bypass the IP limit');
+  assert.equal((await attempt('192.0.2.2', '192.0.2.99')).status,401,'A different trusted IP has its own limit');
   const ownerList = await (await request('/api/instructor/boards', owner)).json();
   const outsiderList = await (await request('/api/instructor/boards', outsider)).json();
   assert(ownerList.boards.some(item=>item.id===board.id));
