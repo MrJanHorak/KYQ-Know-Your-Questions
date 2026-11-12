@@ -488,16 +488,18 @@ export default function Board({ admin = false, boardId }: { admin?: boolean; boa
                           <Avatar name={q.authorName} authorUid={q.authorUid} />{' '}
                           {q.authorName || 'Anonymous'}
                         </span>
-                        <button onClick={() => { setEditingReply(null); setReplyError(''); setSelected(q.id); }}>
-                          <MessageCircle size={15} /> {q.replies?.length || 0}{' '}
-                          {(q.replies?.length || 0) === 1 ? 'reply' : 'replies'}{' '}
-                          <ArrowRight size={14} />
-                        </button>
+                        <div className='question-card-actions'>
+                          {!presenter && (admin || q.authorUid === uid) && (!admin || ['admin','owner'].includes(boardRole)) && <button type='button' className='question-edit-action' onClick={() => startEdit(q)}>{admin ? 'Edit' : 'Edit your question'}</button>}
+                          <button type='button' onClick={() => { setEditingReply(null); setReplyError(''); setSelected(q.id); }}>
+                            <MessageCircle size={15} /> {q.replies?.length || 0}{' '}
+                            {(q.replies?.length || 0) === 1 ? 'reply' : 'replies'}{' '}
+                            <ArrowRight size={14} />
+                          </button>
+                        </div>
                       </div>
-                      {!presenter && (admin || q.authorUid === uid) && (
+                      {!presenter && admin && (
                         <div className='admin-actions'>
                           {admin && <><button onClick={() => action(q.id, 'status', 'in_review')}>In review</button><button onClick={() => action(q.id, 'status', 'answered')}>Mark answered</button></>}
-                          {(!admin || ['admin','owner'].includes(boardRole)) && <button onClick={() => startEdit(q)}>Edit{!admin ? ' your question' : ''}</button>}
                           {admin && canModerate && <button onClick={() => { setDialogError(''); setDeleting(q); }}>Delete</button>}
                         </div>
                       )}
